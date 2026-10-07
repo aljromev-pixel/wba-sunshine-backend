@@ -1,9 +1,12 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\BatchController;
 use App\Http\Controllers\Api\V1\InventoryAdjustmentController;
 use App\Http\Controllers\Api\V1\InventoryController;
 use App\Http\Controllers\Api\V1\InventoryMovementController;
+use App\Http\Controllers\Api\V1\ProductController;
+use App\Http\Controllers\Api\V1\UserController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function (): void {
@@ -24,5 +27,8 @@ Route::prefix('v1')->group(function (): void {
             ->name('api.v1.inventory.adjustments.store');
         Route::post('/inventory/adjustments/{adjustment}/review', [InventoryAdjustmentController::class, 'review'])
             ->name('api.v1.inventory.adjustments.review');
+        Route::apiResource('products', ProductController::class)->except(['show']);
+        Route::apiResource('batches', BatchController::class)->except(['show']);
+        Route::apiResource('users', UserController::class)->except(['show']);
     });
 });
