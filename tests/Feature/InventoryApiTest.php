@@ -151,4 +151,23 @@ class InventoryApiTest extends TestCase
             ->postJson("/api/v1/inventory/adjustments/{$adjustment->id}/review", ['approved' => true])
             ->assertForbidden();
     }
+
+    public function test_manager_cannot_review_their_own_inventory_adjustment(): void
+    {
+        $manager = User::factory()->create(['role_level' => 'Manager']);
+        $adjustment = InventoryAdjustment::factory()->for($manager, 'requestedBy')->create();
+
+        $this->actingAs($manager, 'sanctum')
+            ->postJson("/api/v1/inventory/adjustments/{$adjustment->id}/review", ['approved' => true])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'adjustment' => 'You cannot review your own adjustment request.',
+            ]);
+
+        $this->assertDatabaseHas('inventory_adjustments', [
+            'id' => $adjustment->id,
+            'status' => 'Pending',
+            'reviewed_by' => null,
+        ]);
+    }
 }

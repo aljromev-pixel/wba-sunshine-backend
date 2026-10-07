@@ -47,6 +47,12 @@ class InventoryAdjustmentController extends Controller
                 ]);
             }
 
+            if ($adjustment->requested_by === $request->user()->id) {
+                throw ValidationException::withMessages([
+                    'adjustment' => ['You cannot review your own adjustment request.'],
+                ]);
+            }
+
             $approved = $request->boolean('approved');
 
             if ($approved) {
