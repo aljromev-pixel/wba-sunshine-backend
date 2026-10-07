@@ -53,4 +53,62 @@ class InventoryApiTest extends TestCase
     {
         $this->getJson('/api/v1/inventory')->assertUnauthorized();
     }
+
+    public function test_stock_out_updates_inventory_and_records_an_audit_event(): void
+    {
+        $user = User::factory()->create();
+        $product = Product::factory()->create(['stock' => 10]);
+        $batch = Batch::factory()->for($product)->create(['quantity' => 10]);
+
+        $response = $this->actingAs($user, 'sanctum')->postJson('/api/v1/inventory/movements', [
+            'type' => 'Stock Out',
+            'productId' => $product->id,
+            'batchId' => $batch->id,
+            'quantity' => 4,
+            'reference' => 'SO-24091',
+        ]);
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('data.type', 'Stock Out')
+            ->assertJsonPath('data.productId', $product->id)
+            ->assertJsonPath('data.batch', $batch->number);
+
+        $this->assertDatabaseHas('products', ['id' => $product->id, 'stock' => 6]);
+        $this->assertDatabaseHas('batches', ['id' => $batch->id, 'quantity' => 6]);
+        $this->assertDatabaseHas('inventory_movements', [
+            'product_id' => $product->id,
+            'batch_id' => $batch->id,
+            'user_id' => $user->id,
+            'reference' => 'SO-24091',
+        ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'user_id' => $user->id,
+            'action' => 'Stock Out',
+            'module' => 'Inventory',
+        ]);
+    }
+
+    public function test_stock_out_rejects_a_quantity_above_available_batch_stock(): void
+    {
+        $user = User::factory()->create();
+        $product = Product::factory()->create(['stock' => 10]);
+        $batch = Batch::factory()->for($product)->create(['quantity' => 3]);
+
+        $this->actingAs($user, 'sanctum')
+            ->postJson('/api/v1/inventory/movements', [
+                'type' => 'Stock Out',
+                'productId' => $product->id,
+                'batchId' => $batch->id,
+                'quantity' => 4,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'quantity' => 'The requested quantity exceeds the selected batch quantity.',
+            ]);
+
+        $this->assertDatabaseHas('products', ['id' => $product->id, 'stock' => 10]);
+        $this->assertDatabaseHas('batches', ['id' => $batch->id, 'quantity' => 3]);
+        $this->assertDatabaseCount('inventory_movements', 0);
+    }
 }

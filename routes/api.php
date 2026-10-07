@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\InventoryController;
+use App\Http\Controllers\Api\V1\InventoryMovementController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function (): void {
@@ -16,5 +17,7 @@ Route::prefix('v1')->group(function (): void {
 
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('/inventory', [InventoryController::class, 'index'])->name('api.v1.inventory.index');
+        Route::post('/inventory/movements', [InventoryMovementController::class, 'store'])
+            ->name('api.v1.inventory.movements.store');
     });
 });
