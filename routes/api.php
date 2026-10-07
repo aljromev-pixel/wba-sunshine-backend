@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\InventoryController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function (): void {
@@ -11,5 +12,9 @@ Route::prefix('v1')->group(function (): void {
     Route::middleware('auth:sanctum')->prefix('auth')->group(function (): void {
         Route::get('/me', [AuthController::class, 'me'])->name('api.v1.auth.me');
         Route::post('/logout', [AuthController::class, 'logout'])->name('api.v1.auth.logout');
+    });
+
+    Route::middleware('auth:sanctum')->group(function (): void {
+        Route::get('/inventory', [InventoryController::class, 'index'])->name('api.v1.inventory.index');
     });
 });
