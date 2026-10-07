@@ -111,4 +111,44 @@ class InventoryApiTest extends TestCase
         $this->assertDatabaseHas('batches', ['id' => $batch->id, 'quantity' => 3]);
         $this->assertDatabaseCount('inventory_movements', 0);
     }
+
+    public function test_manager_can_approve_an_inventory_adjustment_and_update_stock(): void
+    {
+        $staff = User::factory()->create();
+        $manager = User::factory()->create(['role_level' => 'Manager']);
+        $product = Product::factory()->create(['stock' => 10]);
+
+        $adjustmentResponse = $this->actingAs($staff, 'sanctum')->postJson('/api/v1/inventory/adjustments', [
+            'productId' => $product->id,
+            'requestedQty' => 7,
+            'reason' => 'Cycle count variance',
+        ]);
+
+        $adjustmentResponse->assertCreated()->assertJsonPath('data.status', 'Pending');
+        $adjustmentId = $adjustmentResponse->json('data.id');
+
+        $this->actingAs($manager, 'sanctum')
+            ->postJson("/api/v1/inventory/adjustments/{$adjustmentId}/review", ['approved' => true])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'Approved')
+            ->assertJsonPath('data.reviewedBy', $manager->name);
+
+        $this->assertDatabaseHas('products', ['id' => $product->id, 'stock' => 7]);
+        $this->assertDatabaseHas('inventory_adjustments', [
+            'id' => $adjustmentId,
+            'status' => 'Approved',
+            'reviewed_by' => $manager->id,
+        ]);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'Adjustment approved', 'user_id' => $manager->id]);
+    }
+
+    public function test_staff_cannot_review_an_inventory_adjustment(): void
+    {
+        $staff = User::factory()->create(['role_level' => 'Staff']);
+        $adjustment = InventoryAdjustment::factory()->create();
+
+        $this->actingAs($staff, 'sanctum')
+            ->postJson("/api/v1/inventory/adjustments/{$adjustment->id}/review", ['approved' => true])
+            ->assertForbidden();
+    }
 }
