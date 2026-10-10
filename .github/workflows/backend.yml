@@ -1,0 +1,67 @@
+name: Backend verification
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  postgres-and-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: sunshine_test
+          POSTGRES_USER: sunshine_test
+          POSTGRES_PASSWORD: ci-only-password
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U sunshine_test -d sunshine_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: sunshine_test
+      DB_USERNAME: sunshine_test
+      DB_PASSWORD: ci-only-password
+      DB_URL: ''
+      DB_SSLMODE: disable
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_pgsql, mbstring, intl
+          coverage: none
+          tools: composer:v2
+      - run: composer install --prefer-dist --no-interaction
+      - run: cp .env.example .env
+      - run: php artisan key:generate --no-interaction
+      - run: php artisan test --compact
+      - run: docker build -t sunshine-api .
+      - name: Start production image against disposable PostgreSQL
+        run: >-
+          docker run -d --name sunshine-api --network host
+          -e APP_ENV=production -e APP_DEBUG=false
+          -e APP_KEY="$(php artisan key:generate --show --no-interaction)"
+          -e APP_URL=http://127.0.0.1:10000 -e PORT=10000
+          -e DB_CONNECTION=pgsql -e DB_HOST=127.0.0.1 -e DB_PORT=5432
+          -e DB_DATABASE=sunshine_test -e DB_USERNAME=sunshine_test -e DB_PASSWORD=ci-only-password
+          -e DB_SSLMODE=disable -e SESSION_DRIVER=database -e CACHE_STORE=database
+          -e QUEUE_CONNECTION=sync -e LOG_CHANNEL=stderr
+          -e CORS_ALLOWED_ORIGINS=https://frontend.example.test sunshine-api
+      - name: Check container health and authentication boundary
+        run: |
+          curl --fail --retry 20 --retry-delay 3 --retry-connrefused http://127.0.0.1:10000/up
+          status=$(curl -s -o /dev/null -w '%{http_code}' -H 'Accept: application/json' http://127.0.0.1:10000/api/v1/inventory)
+          test "$status" = 401
+      - name: Stop disposable container
+        if: always()
+        run: docker rm -f sunshine-api || true
