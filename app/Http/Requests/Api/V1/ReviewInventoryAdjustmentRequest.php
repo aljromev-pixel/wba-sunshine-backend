@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests\Api\V1;
 
+use App\Models\User;
+use App\Support\InventoryPermissions;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -12,7 +14,9 @@ class ReviewInventoryAdjustmentRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return in_array($this->user()?->role_level, ['Supervisor', 'Manager'], true);
+        $user = $this->user();
+
+        return $user instanceof User && InventoryPermissions::canReviewAdjustment($user);
     }
 
     /**

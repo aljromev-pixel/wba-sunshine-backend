@@ -152,6 +152,38 @@ class InventoryApiTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_sales_staff_cannot_create_a_stock_in_movement_or_adjustment_request(): void
+    {
+        $salesStaff = User::factory()->create(['department' => 'Sales', 'role_level' => 'Staff']);
+        $product = Product::factory()->create();
+
+        $this->actingAs($salesStaff, 'sanctum')
+            ->postJson('/api/v1/inventory/movements', [
+                'type' => 'Stock In',
+                'productId' => $product->id,
+                'quantity' => 1,
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($salesStaff, 'sanctum')
+            ->postJson('/api/v1/inventory/adjustments', [
+                'productId' => $product->id,
+                'requestedQty' => 1,
+                'reason' => 'Unauthorized role check',
+            ])
+            ->assertForbidden();
+    }
+
+    public function test_sales_supervisor_cannot_review_an_inventory_adjustment(): void
+    {
+        $salesSupervisor = User::factory()->create(['department' => 'Sales', 'role_level' => 'Supervisor']);
+        $adjustment = InventoryAdjustment::factory()->create();
+
+        $this->actingAs($salesSupervisor, 'sanctum')
+            ->postJson("/api/v1/inventory/adjustments/{$adjustment->id}/review", ['approved' => true])
+            ->assertForbidden();
+    }
+
     public function test_manager_cannot_review_their_own_inventory_adjustment(): void
     {
         $manager = User::factory()->create(['role_level' => 'Manager']);
