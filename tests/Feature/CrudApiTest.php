@@ -68,6 +68,7 @@ class CrudApiTest extends TestCase
 
         $create = $this->actingAs($admin, 'sanctum')->postJson('/api/v1/users', [
             'name' => 'New Warehouse Staff',
+            'lastName' => 'Member',
             'email' => 'new.staff@example.com',
             'password' => 'password123',
             'department' => 'Warehouse',

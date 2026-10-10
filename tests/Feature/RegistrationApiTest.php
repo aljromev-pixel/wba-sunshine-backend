@@ -71,6 +71,8 @@ class RegistrationApiTest extends TestCase
     {
         return [
             'missing name' => [['name' => ''], 'name'],
+            'missing last name' => [['lastName' => ''], 'lastName'],
+            'whitespace last name' => [['lastName' => '   '], 'lastName'],
             'long name' => [['name' => str_repeat('a', 256)], 'name'],
             'long last name' => [['lastName' => str_repeat('b', 256)], 'lastName'],
             'combined name too long' => [['name' => str_repeat('a', 200), 'lastName' => str_repeat('b', 100)], 'fullName'],
@@ -79,6 +81,7 @@ class RegistrationApiTest extends TestCase
             'invalid email' => [['email' => 'not-an-email'], 'email'],
             'long email' => [['email' => str_repeat('a', 245).'@example.test'], 'email'],
             'missing password' => [['password' => ''], 'password'],
+            'missing confirmation' => [['password_confirmation' => ''], 'password_confirmation'],
             'short password' => [['password' => 'short', 'password_confirmation' => 'short'], 'password'],
             'long password' => [['password' => str_repeat('a', 256), 'password_confirmation' => str_repeat('a', 256)], 'password'],
             'mismatched confirmation' => [['password_confirmation' => 'different-password'], 'password'],

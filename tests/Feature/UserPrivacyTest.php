@@ -94,6 +94,16 @@ class UserPrivacyTest extends TestCase
         ])->assertUnprocessable()->assertJsonValidationErrors('lastName');
     }
 
+    public function test_admin_cannot_create_an_account_without_a_last_name(): void
+    {
+        $admin = User::factory()->create(['department' => 'Administration', 'role_level' => 'Manager']);
+        $this->actingAs($admin, 'sanctum')->postJson('/api/v1/users', [
+            ...$this->profile(), 'lastName' => '', 'password' => 'test-only-password',
+        ])->assertUnprocessable()->assertJsonValidationErrors('lastName');
+        $this->assertDatabaseCount('users', 1);
+        $this->assertDatabaseCount('audit_logs', 0);
+    }
+
     public function test_existing_full_names_remain_readable_without_guessing_a_surname(): void
     {
         $user = User::factory()->create(['name' => 'Mary Ann De la Cruz']);

@@ -28,7 +28,7 @@ class UserAuditTest extends TestCase
         $this->assertStringNotContainsString($response->json('token'), AuditLog::query()->firstOrFail()->toJson());
         $this->withToken($response->json('token'))->getJson('/api/v1/inventory')
             ->assertOk()->assertJsonPath('audit.0.action', 'Account registered')
-            ->assertJsonPath('audit.0.user', 'Audit Staff');
+            ->assertJsonPath('audit.0.user', 'Audit Staff Member');
     }
 
     public function test_admin_create_and_update_record_the_actor_target_and_no_password_value(): void
@@ -45,7 +45,7 @@ class UserAuditTest extends TestCase
         ])->assertOk();
         $this->assertDatabaseHas('audit_logs', [
             'user_id' => $admin->id, 'action' => 'User updated', 'reference' => (string) $targetId,
-            'description' => 'Updated Staff (audit@example.test)',
+            'description' => 'Updated Staff Member (audit@example.test)',
         ]);
         $this->assertDatabaseCount('audit_logs', 2);
         $logs = AuditLog::query()->get()->toJson();
@@ -83,6 +83,6 @@ class UserAuditTest extends TestCase
     /** @return array<string, string> */
     private function profile(): array
     {
-        return ['name' => 'Audit Staff', 'email' => 'audit@example.test', 'department' => 'Warehouse', 'roleLevel' => 'Staff'];
+        return ['name' => 'Audit Staff', 'lastName' => 'Member', 'email' => 'audit@example.test', 'department' => 'Warehouse', 'roleLevel' => 'Staff'];
     }
 }
