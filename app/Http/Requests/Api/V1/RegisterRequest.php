@@ -26,10 +26,11 @@ class RegisterRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'lastName' => ['nullable', 'string', 'max:255'],
+            'lastName' => ['required', 'string', 'max:255'],
             'fullName' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')],
             'password' => ['required', 'string', 'max:255', 'confirmed', Password::min(12)],
+            'password_confirmation' => ['required', 'string', 'max:255'],
             'department' => ['required', 'string', Rule::in(['Warehouse', 'Sales', 'Purchasing'])],
             'roleLevel' => ['sometimes', 'string', Rule::in(['Staff'])],
             'role_level' => ['prohibited'],
