@@ -12,28 +12,33 @@ class RegistrationApiTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_public_registration_creates_sales_staff_and_allows_sign_in_without_privilege_escalation(): void
+    #[DataProvider('staffDepartments')]
+    public function test_registration_issues_a_working_staff_token_for_the_selected_department(string $department): void
     {
         $response = $this->postJson('/api/v1/auth/register', [
             ...$this->details(), 'email' => ' NEW@EXAMPLE.TEST ',
-            'department' => 'Administration', 'roleLevel' => 'Manager', 'role_level' => 'Manager',
+            'department' => $department, 'roleLevel' => 'Staff',
         ]);
         $response->assertCreated()
             ->assertJsonPath('user.email', 'new@example.test')
-            ->assertJsonPath('user.department', 'Sales')
+            ->assertJsonPath('user.department', $department)
             ->assertJsonPath('user.roleLevel', 'Staff')
-            ->assertJsonMissingPath('user.password')->assertJsonMissingPath('token');
+            ->assertJsonMissingPath('user.password');
         $user = User::query()->where('email', 'new@example.test')->firstOrFail();
         $this->assertTrue(Hash::check('test-only-password', $user->password));
-        $this->assertDatabaseCount('personal_access_tokens', 0);
-        $login = $this->postJson('/api/v1/auth/login', [
-            'email' => 'new@example.test', 'password' => 'test-only-password',
-        ])->assertOk();
-        $this->withToken($login->json('token'))->getJson('/api/v1/auth/me')
+        $this->assertDatabaseHas('users', ['id' => $user->id, 'department' => $department, 'role_level' => 'Staff']);
+        $this->assertDatabaseCount('personal_access_tokens', 1);
+        $this->withToken($response->json('token'))->getJson('/api/v1/auth/me')
             ->assertOk()->assertJsonPath('user.id', $user->id);
         $this->getJson('/api/v1/users')->assertForbidden();
         $this->postJson('/api/v1/products', [])->assertForbidden();
-        $this->postJson('/api/v1/inventory/adjustments', [])->assertForbidden();
+        $this->getJson('/api/v1/inventory')->assertOk();
+    }
+
+    /** @return array<string, array{string}> */
+    public static function staffDepartments(): array
+    {
+        return ['warehouse' => ['Warehouse'], 'sales' => ['Sales'], 'purchasing' => ['Purchasing']];
     }
 
     public function test_duplicate_email_returns_422_and_preserves_the_existing_account(): void
@@ -68,6 +73,12 @@ class RegistrationApiTest extends TestCase
             'short password' => [['password' => 'short', 'password_confirmation' => 'short'], 'password'],
             'long password' => [['password' => str_repeat('a', 256), 'password_confirmation' => str_repeat('a', 256)], 'password'],
             'mismatched confirmation' => [['password_confirmation' => 'different-password'], 'password'],
+            'missing department' => [['department' => ''], 'department'],
+            'unsupported department' => [['department' => 'Support'], 'department'],
+            'administration is not staff' => [['department' => 'Administration'], 'department'],
+            'supervisor access' => [['roleLevel' => 'Supervisor'], 'roleLevel'],
+            'manager access' => [['roleLevel' => 'Manager'], 'roleLevel'],
+            'raw manager attribute' => [['role_level' => 'Manager'], 'role_level'],
         ];
     }
 
@@ -85,7 +96,7 @@ class RegistrationApiTest extends TestCase
     private function details(): array
     {
         return [
-            'name' => 'New Team Member', 'email' => 'new@example.test',
+            'name' => 'New Team Member', 'email' => 'new@example.test', 'department' => 'Sales',
             'password' => 'test-only-password', 'password_confirmation' => 'test-only-password',
         ];
     }
