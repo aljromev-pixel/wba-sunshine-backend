@@ -23,10 +23,15 @@ class RegistrationApiTest extends TestCase
             ->assertJsonPath('user.email', 'new@example.test')
             ->assertJsonPath('user.department', $department)
             ->assertJsonPath('user.roleLevel', 'Staff')
+            ->assertJsonPath('user.name', 'New Member')
+            ->assertJsonPath('user.firstName', 'New')
+            ->assertJsonPath('user.lastName', 'Member')
             ->assertJsonMissingPath('user.password');
         $user = User::query()->where('email', 'new@example.test')->firstOrFail();
         $this->assertTrue(Hash::check('test-only-password', $user->password));
         $this->assertDatabaseHas('users', ['id' => $user->id, 'department' => $department, 'role_level' => 'Staff']);
+        $this->assertDatabaseHas('users', ['id' => $user->id, 'name' => 'New Member', 'first_name' => 'New', 'last_name' => 'Member']);
+        $this->assertDatabaseHas('audit_logs', ['reference' => (string) $user->id, 'description' => 'New Member (new@example.test) registered a staff account.']);
         $this->assertDatabaseCount('personal_access_tokens', 1);
         $this->withToken($response->json('token'))->getJson('/api/v1/auth/me')
             ->assertOk()->assertJsonPath('user.id', $user->id);
@@ -50,7 +55,7 @@ class RegistrationApiTest extends TestCase
         $this->assertSame($existing->name, $existing->fresh()->name);
     }
 
-    /** @param array<string, string> $changes */
+    /** @param array<string, mixed> $changes */
     #[DataProvider('invalidDetails')]
     public function test_invalid_registration_returns_422_without_creating_an_account(array $changes, string $field): void
     {
@@ -58,14 +63,18 @@ class RegistrationApiTest extends TestCase
             ->assertUnprocessable()->assertJsonValidationErrors($field);
         $this->assertDatabaseCount('users', 0);
         $this->assertDatabaseCount('personal_access_tokens', 0);
+        $this->assertDatabaseCount('audit_logs', 0);
     }
 
-    /** @return array<string, array{array<string, string>, string}> */
+    /** @return array<string, array{array<string, mixed>, string}> */
     public static function invalidDetails(): array
     {
         return [
             'missing name' => [['name' => ''], 'name'],
             'long name' => [['name' => str_repeat('a', 256)], 'name'],
+            'long last name' => [['lastName' => str_repeat('b', 256)], 'lastName'],
+            'combined name too long' => [['name' => str_repeat('a', 200), 'lastName' => str_repeat('b', 100)], 'fullName'],
+            'malformed last name' => [['lastName' => ['invalid']], 'lastName'],
             'missing email' => [['email' => ''], 'email'],
             'invalid email' => [['email' => 'not-an-email'], 'email'],
             'long email' => [['email' => str_repeat('a', 245).'@example.test'], 'email'],
@@ -96,7 +105,7 @@ class RegistrationApiTest extends TestCase
     private function details(): array
     {
         return [
-            'name' => 'New Team Member', 'email' => 'new@example.test', 'department' => 'Sales',
+            'name' => 'New', 'lastName' => 'Member', 'email' => 'new@example.test', 'department' => 'Sales',
             'password' => 'test-only-password', 'password_confirmation' => 'test-only-password',
         ];
     }
