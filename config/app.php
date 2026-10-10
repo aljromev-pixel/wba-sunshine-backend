@@ -2,6 +2,8 @@
 
 return [
 
+    'trust_render_proxy' => env('RENDER', false),
+
     /*
     |--------------------------------------------------------------------------
     | Application Name

@@ -2,6 +2,12 @@
 
 return [
 
+    'bootstrap_admin' => [
+        'name' => env('BOOTSTRAP_ADMIN_NAME'),
+        'email' => env('BOOTSTRAP_ADMIN_EMAIL'),
+        'password' => env('BOOTSTRAP_ADMIN_PASSWORD'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services
