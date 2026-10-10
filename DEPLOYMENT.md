@@ -183,7 +183,8 @@ demos. Uploaded files would need durable object storage; this setup does not add
 
 ## Application sign-off still required
 
-Reporting source-of-truth and report calculations remain open. Backend adjustment
+Frontend reports now explicitly calculate from the Laravel inventory API snapshot;
+see the frontend README for rules and assumptions. Backend adjustment
 approval can overwrite stock changed since submission and does not reconcile batch
 quantities; product stock editing also needs a consistent reconciliation rule.
 Expired batches still need backend write rejection. Audit/adjustment reads need
