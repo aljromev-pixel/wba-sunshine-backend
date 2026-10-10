@@ -26,6 +26,8 @@ class RegisterRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
+            'lastName' => ['nullable', 'string', 'max:255'],
+            'fullName' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')],
             'password' => ['required', 'string', 'max:255', 'confirmed', Password::min(12)],
             'department' => ['required', 'string', Rule::in(['Warehouse', 'Sales', 'Purchasing'])],
@@ -36,6 +38,13 @@ class RegisterRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
-        $this->merge(['email' => strtolower($this->string('email')->trim()->toString())]);
+        $firstName = $this->input('name');
+        $lastName = $this->input('lastName');
+        $this->merge([
+            'email' => strtolower($this->string('email')->trim()->toString()),
+            'fullName' => is_string($firstName) && ($lastName === null || is_string($lastName))
+                ? trim($firstName.' '.$lastName)
+                : null,
+        ]);
     }
 }

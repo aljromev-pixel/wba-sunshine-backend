@@ -22,7 +22,9 @@ class AuthController extends Controller
 
         return DB::transaction(function () use ($data): JsonResponse {
             $user = User::query()->create([
-                'name' => $data['name'],
+                'name' => $data['fullName'],
+                'first_name' => $data['name'],
+                'last_name' => $data['lastName'] ?? null,
                 'email' => $data['email'],
                 'password' => $data['password'],
                 'department' => $data['department'],
