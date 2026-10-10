@@ -9,6 +9,7 @@ use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
@@ -17,18 +18,21 @@ class AuthController extends Controller
     public function register(RegisterRequest $request): JsonResponse
     {
         $data = $request->validated();
-        $user = User::query()->create([
-            'name' => $data['name'],
-            'email' => $data['email'],
-            'password' => $data['password'],
-            'department' => 'Sales',
-            'role_level' => 'Staff',
-        ]);
 
-        return response()->json([
-            'message' => 'Account created. Sign in to access your workspace.',
-            'user' => new UserResource($user),
-        ], 201);
+        return DB::transaction(function () use ($data): JsonResponse {
+            $user = User::query()->create([
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'password' => $data['password'],
+                'department' => $data['department'],
+                'role_level' => 'Staff',
+            ]);
+
+            return response()->json([
+                'token' => $user->createToken('frontend')->plainTextToken,
+                'user' => new UserResource($user),
+            ], 201);
+        });
     }
 
     public function login(LoginRequest $request): JsonResponse
