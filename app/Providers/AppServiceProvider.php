@@ -28,6 +28,10 @@ class AppServiceProvider extends ServiceProvider
             TrustProxies::withHeaders(Request::HEADER_X_FORWARDED_FOR | Request::HEADER_X_FORWARDED_PROTO | Request::HEADER_X_FORWARDED_PORT);
         }
 
+        RateLimiter::for('register', function (Request $request): Limit {
+            return Limit::perHour(5)->by($request->ip());
+        });
+
         RateLimiter::for('login', function (Request $request): Limit {
             $email = strtolower($request->string('email')->trim()->toString());
 

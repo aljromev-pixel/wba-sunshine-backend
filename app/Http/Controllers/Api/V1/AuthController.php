@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\LoginRequest;
+use App\Http\Requests\Api\V1\RegisterRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -13,6 +14,23 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
+    public function register(RegisterRequest $request): JsonResponse
+    {
+        $data = $request->validated();
+        $user = User::query()->create([
+            'name' => $data['name'],
+            'email' => $data['email'],
+            'password' => $data['password'],
+            'department' => 'Sales',
+            'role_level' => 'Staff',
+        ]);
+
+        return response()->json([
+            'message' => 'Account created. Sign in to access your workspace.',
+            'user' => new UserResource($user),
+        ], 201);
+    }
+
     public function login(LoginRequest $request): JsonResponse
     {
         $email = strtolower($request->string('email')->trim()->toString());
