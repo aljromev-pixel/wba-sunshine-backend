@@ -10,7 +10,9 @@ use App\Models\AuditLog;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class UserController extends Controller
 {
@@ -25,7 +27,9 @@ class UserController extends Controller
     {
         $data = $request->validated();
         $user = User::query()->create([
-            'name' => $data['name'],
+            'name' => $data['fullName'],
+            'first_name' => $data['name'],
+            'last_name' => $data['lastName'] ?? null,
             'email' => $data['email'],
             'password' => $data['password'],
             'department' => $data['department'],
@@ -40,7 +44,9 @@ class UserController extends Controller
     {
         $data = $request->validated();
         $attributes = [
-            'name' => $data['name'],
+            'name' => $data['fullName'],
+            'first_name' => $data['name'],
+            'last_name' => $data['lastName'] ?? null,
             'email' => $data['email'],
             'department' => $data['department'],
             'role_level' => $data['roleLevel'],
@@ -50,8 +56,18 @@ class UserController extends Controller
             $attributes['password'] = $data['password'];
         }
 
-        $user->update($attributes);
-        $this->audit($request, 'User updated', $user);
+        DB::transaction(function () use ($user, $attributes, $request, $data): void {
+            $user->update($attributes);
+            if (! empty($data['password'])) {
+                $tokens = $user->tokens();
+                $currentToken = $request->user()->currentAccessToken();
+                if ($user->is($request->user()) && $currentToken instanceof PersonalAccessToken) {
+                    $tokens->where('id', '!=', $currentToken->getKey());
+                }
+                $tokens->delete();
+            }
+            $this->audit($request, 'User updated', $user);
+        });
 
         return (new UserResource($user->fresh()))->response();
     }
@@ -59,6 +75,8 @@ class UserController extends Controller
     public function destroy(Request $request, User $user): JsonResponse
     {
         $this->authorizeManagement($request);
+
+        abort_if($user->department === 'Administration' && $user->role_level === 'Manager' && ! $user->is($request->user()), 403);
 
         if ($user->is($request->user())) {
             throw ValidationException::withMessages([

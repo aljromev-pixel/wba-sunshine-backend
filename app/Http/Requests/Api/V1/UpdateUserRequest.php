@@ -15,7 +15,11 @@ class UpdateUserRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->canManageUsers();
+        $target = $this->route('user');
+
+        return $this->canManageUsers()
+            && $target instanceof User
+            && ! ($target->department === 'Administration' && $target->role_level === 'Manager' && ! $target->is($this->user()));
     }
 
     /**
@@ -27,11 +31,22 @@ class UpdateUserRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
+            'lastName' => ['nullable', 'string', 'max:255'],
+            'fullName' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($this->route('user'))],
             'password' => ['nullable', 'string', Password::min(8)],
             'department' => ['required', 'string', Rule::in(['Warehouse', 'Sales', 'Purchasing', 'Administration'])],
             'roleLevel' => ['required', 'string', Rule::in(User::ROLE_LEVELS_BY_DEPARTMENT[$this->string('department')->toString()] ?? [])],
         ];
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $firstName = $this->input('name');
+        $lastName = $this->input('lastName');
+        $this->merge(['fullName' => is_string($firstName) && ($lastName === null || is_string($lastName))
+            ? trim($firstName.' '.$lastName)
+            : null]);
     }
 
     private function canManageUsers(): bool
