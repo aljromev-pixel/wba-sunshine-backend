@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Product;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\TestWith;
 use Tests\TestCase;
 
 class CrudApiTest extends TestCase
@@ -94,6 +95,46 @@ class CrudApiTest extends TestCase
         $manager = User::factory()->create(['department' => 'Warehouse', 'role_level' => 'Manager']);
 
         $this->actingAs($manager, 'sanctum')->getJson('/api/v1/users')->assertForbidden();
+    }
+
+    #[TestWith(['Sales', 'Manager'])]
+    #[TestWith(['Purchasing', 'Supervisor'])]
+    #[TestWith(['Administration', 'Staff'])]
+    #[TestWith(['Administration', 'Supervisor'])]
+    public function test_unsupported_role_cannot_be_created(string $department, string $roleLevel): void
+    {
+        $admin = User::factory()->create(['department' => 'Administration', 'role_level' => 'Manager']);
+
+        $this->actingAs($admin, 'sanctum')->postJson('/api/v1/users', [
+            'name' => 'Unsupported User',
+            'email' => 'unsupported@example.com',
+            'password' => 'password123',
+            'department' => $department,
+            'roleLevel' => $roleLevel,
+        ])->assertUnprocessable()->assertJsonValidationErrors(['roleLevel']);
+
+        $this->assertDatabaseMissing('users', ['email' => 'unsupported@example.com']);
+        $this->assertDatabaseCount('audit_logs', 0);
+    }
+
+    #[TestWith(['Sales', 'Manager'])]
+    #[TestWith(['Purchasing', 'Supervisor'])]
+    #[TestWith(['Administration', 'Staff'])]
+    #[TestWith(['Administration', 'Supervisor'])]
+    public function test_unsupported_role_cannot_be_assigned_on_update(string $department, string $roleLevel): void
+    {
+        $admin = User::factory()->create(['department' => 'Administration', 'role_level' => 'Manager']);
+        $staff = User::factory()->create(['department' => 'Warehouse', 'role_level' => 'Staff']);
+
+        $this->actingAs($admin, 'sanctum')->putJson("/api/v1/users/{$staff->id}", [
+            'name' => $staff->name,
+            'email' => $staff->email,
+            'department' => $department,
+            'roleLevel' => $roleLevel,
+        ])->assertUnprocessable()->assertJsonValidationErrors(['roleLevel']);
+
+        $this->assertDatabaseHas('users', ['id' => $staff->id, 'department' => 'Warehouse', 'role_level' => 'Staff']);
+        $this->assertDatabaseCount('audit_logs', 0);
     }
 
     /** @return array<string, int|string|null> */

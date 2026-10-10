@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Api\V1;
 
+use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -29,7 +30,7 @@ class UpdateUserRequest extends FormRequest
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($this->route('user'))],
             'password' => ['nullable', 'string', Password::min(8)],
             'department' => ['required', 'string', Rule::in(['Warehouse', 'Sales', 'Purchasing', 'Administration'])],
-            'roleLevel' => ['required', 'string', Rule::in(['Staff', 'Supervisor', 'Manager'])],
+            'roleLevel' => ['required', 'string', Rule::in(User::ROLE_LEVELS_BY_DEPARTMENT[$this->string('department')->toString()] ?? [])],
         ];
     }
 

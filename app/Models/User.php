@@ -16,6 +16,14 @@ use Laravel\Sanctum\HasApiTokens;
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
+    /** @var array<string, list<string>> */
+    public const ROLE_LEVELS_BY_DEPARTMENT = [
+        'Warehouse' => ['Staff', 'Supervisor', 'Manager'],
+        'Sales' => ['Staff', 'Supervisor'],
+        'Purchasing' => ['Staff', 'Manager'],
+        'Administration' => ['Manager'],
+    ];
+
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
 
