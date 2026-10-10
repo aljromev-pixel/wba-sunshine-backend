@@ -26,16 +26,20 @@ class UserController extends Controller
     public function store(StoreUserRequest $request): JsonResponse
     {
         $data = $request->validated();
-        $user = User::query()->create([
-            'name' => $data['fullName'],
-            'first_name' => $data['name'],
-            'last_name' => $data['lastName'] ?? null,
-            'email' => $data['email'],
-            'password' => $data['password'],
-            'department' => $data['department'],
-            'role_level' => $data['roleLevel'],
-        ]);
-        $this->audit($request, 'User created', $user);
+        $user = DB::transaction(function () use ($data, $request): User {
+            $user = User::query()->create([
+                'name' => $data['fullName'],
+                'first_name' => $data['name'],
+                'last_name' => $data['lastName'] ?? null,
+                'email' => $data['email'],
+                'password' => $data['password'],
+                'department' => $data['department'],
+                'role_level' => $data['roleLevel'],
+            ]);
+            $this->audit($request, 'User created', $user);
+
+            return $user;
+        });
 
         return (new UserResource($user))->response()->setStatusCode(201);
     }

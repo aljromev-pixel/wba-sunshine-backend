@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\LoginRequest;
 use App\Http\Requests\Api\V1\RegisterRequest;
 use App\Http\Resources\UserResource;
+use App\Models\AuditLog;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -26,6 +27,16 @@ class AuthController extends Controller
                 'password' => $data['password'],
                 'department' => $data['department'],
                 'role_level' => 'Staff',
+            ]);
+
+            AuditLog::query()->create([
+                'user_id' => $user->id,
+                'department' => $user->department,
+                'role_level' => $user->role_level,
+                'action' => 'Account registered',
+                'module' => 'Users',
+                'reference' => (string) $user->id,
+                'description' => "{$user->name} ({$user->email}) registered a staff account.",
             ]);
 
             return response()->json([
