@@ -50,6 +50,11 @@ Management routes are role protected. Warehouse Supervisors/Managers and Adminis
 
 ## Verification
 
+For Vercel + Render + Supabase deployment, follow [DEPLOYMENT.md](DEPLOYMENT.md).
+It includes database creation, exact environment variables, first-admin setup,
+frontend configuration, verification, and remaining production sign-off issues.
+The backend CI workflow tests PostgreSQL and the Docker image after changes are pushed.
+
 ```bash
 php artisan test
 ```
