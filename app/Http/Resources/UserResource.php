@@ -22,6 +22,8 @@ class UserResource extends JsonResource
             'email' => $this->email,
             'department' => $this->department,
             'roleLevel' => $this->role_level,
+            'isActive' => $this->is_active,
+            'mustChangePassword' => $this->must_change_password,
         ];
     }
 }

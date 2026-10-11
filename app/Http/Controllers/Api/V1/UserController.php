@@ -35,6 +35,8 @@ class UserController extends Controller
                 'password' => $data['password'],
                 'department' => $data['department'],
                 'role_level' => $data['roleLevel'],
+                'is_active' => $data['isActive'] ?? true,
+                'must_change_password' => true,
             ]);
             $this->audit($request, 'User created', $user);
 
@@ -47,6 +49,9 @@ class UserController extends Controller
     public function update(UpdateUserRequest $request, User $user): JsonResponse
     {
         $data = $request->validated();
+        if ($user->is($request->user()) && array_key_exists('isActive', $data) && ! $data['isActive']) {
+            throw ValidationException::withMessages(['isActive' => ['You cannot disable your own account.']]);
+        }
         $attributes = [
             'name' => $data['fullName'],
             'first_name' => $data['name'],
@@ -54,23 +59,28 @@ class UserController extends Controller
             'email' => $data['email'],
             'department' => $data['department'],
             'role_level' => $data['roleLevel'],
+            'is_active' => $data['isActive'] ?? $user->is_active,
         ];
 
         if (! empty($data['password'])) {
             $attributes['password'] = $data['password'];
+            $attributes['must_change_password'] = ! $user->is($request->user());
         }
 
         DB::transaction(function () use ($user, $attributes, $request, $data): void {
             $user->update($attributes);
-            if (! empty($data['password'])) {
+            if (! empty($data['password']) || ! $user->is_active) {
                 $tokens = $user->tokens();
                 $currentToken = $request->user()->currentAccessToken();
-                if ($user->is($request->user()) && $currentToken instanceof PersonalAccessToken) {
+                if ($user->is_active && $user->is($request->user()) && $currentToken instanceof PersonalAccessToken) {
                     $tokens->where('id', '!=', $currentToken->getKey());
                 }
                 $tokens->delete();
             }
             $this->audit($request, 'User updated', $user);
+            if ($user->wasChanged('is_active')) {
+                $this->audit($request, $user->is_active ? 'User enabled' : 'User disabled', $user);
+            }
         });
 
         return (new UserResource($user->fresh()))->response();

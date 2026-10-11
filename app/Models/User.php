@@ -12,10 +12,13 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
-#[Fillable(['name', 'first_name', 'last_name', 'email', 'password', 'department', 'role_level'])]
+#[Fillable(['name', 'first_name', 'last_name', 'email', 'password', 'department', 'role_level', 'is_active', 'must_change_password'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
+    /** @var array<string, mixed> */
+    protected $attributes = ['is_active' => true, 'must_change_password' => false];
+
     /** @var array<string, list<string>> */
     public const ROLE_LEVELS_BY_DEPARTMENT = [
         'Warehouse' => ['Staff', 'Supervisor', 'Manager'],
@@ -57,6 +60,8 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_active' => 'boolean',
+            'must_change_password' => 'boolean',
         ];
     }
 }

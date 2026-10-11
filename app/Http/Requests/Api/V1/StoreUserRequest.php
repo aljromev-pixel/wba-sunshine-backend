@@ -33,6 +33,7 @@ class StoreUserRequest extends FormRequest
             'password' => ['required', 'string', Password::min(8)],
             'department' => ['required', 'string', Rule::in(['Warehouse', 'Sales', 'Purchasing', 'Administration'])],
             'roleLevel' => ['required', 'string', Rule::in(User::ROLE_LEVELS_BY_DEPARTMENT[$this->string('department')->toString()] ?? [])],
+            'isActive' => ['sometimes', 'boolean'],
         ];
     }
 

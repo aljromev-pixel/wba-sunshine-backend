@@ -7,23 +7,21 @@ use App\Http\Controllers\Api\V1\InventoryController;
 use App\Http\Controllers\Api\V1\InventoryMovementController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\UserController;
+use App\Http\Middleware\EnsureAccountAccess;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function (): void {
-    Route::post('/auth/register', [AuthController::class, 'register'])
-        ->middleware('throttle:register')
-        ->name('api.v1.auth.register');
-
     Route::post('/auth/login', [AuthController::class, 'login'])
         ->middleware('throttle:login')
         ->name('api.v1.auth.login');
 
-    Route::middleware('auth:sanctum')->prefix('auth')->group(function (): void {
+    Route::middleware(['auth:sanctum', EnsureAccountAccess::class.':password'])->prefix('auth')->group(function (): void {
         Route::get('/me', [AuthController::class, 'me'])->name('api.v1.auth.me');
         Route::post('/logout', [AuthController::class, 'logout'])->name('api.v1.auth.logout');
+        Route::post('/password', [AuthController::class, 'changePassword'])->middleware('throttle:6,1')->name('api.v1.auth.password');
     });
 
-    Route::middleware('auth:sanctum')->group(function (): void {
+    Route::middleware(['auth:sanctum', EnsureAccountAccess::class])->group(function (): void {
         Route::get('/inventory', [InventoryController::class, 'index'])->name('api.v1.inventory.index');
         Route::post('/inventory/movements', [InventoryMovementController::class, 'store'])
             ->name('api.v1.inventory.movements.store');
