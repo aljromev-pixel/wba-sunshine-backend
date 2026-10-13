@@ -28,7 +28,7 @@ class CrudApiTest extends TestCase
 
         $this->actingAs($manager, 'sanctum')->deleteJson("/api/v1/products/{$productId}")->assertNoContent();
 
-        $this->assertDatabaseMissing('products', ['id' => $productId]);
+        $this->assertSoftDeleted('products', ['id' => $productId]);
         $this->assertDatabaseCount('audit_logs', 3);
     }
 

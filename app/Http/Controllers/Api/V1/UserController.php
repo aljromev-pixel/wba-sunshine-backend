@@ -110,9 +110,16 @@ class UserController extends Controller
             ]);
         }
 
-        $this->audit($request, 'User deleted', $user);
-        $user->tokens()->delete();
-        $user->delete();
+        DB::transaction(function () use ($request, $user): void {
+            $user = User::query()->lockForUpdate()->findOrFail($user->id);
+            if ($user->inventoryMovements()->exists() || $user->requestedInventoryAdjustments()->exists() || $user->reviewedInventoryAdjustments()->exists()) {
+                throw ValidationException::withMessages(['user' => ['Users with inventory history cannot be deleted.']]);
+            }
+            $this->audit($request, 'User deleted', $user);
+            $user->tokens()->delete();
+            $user->forceFill(['is_active' => false, 'deleted_by' => $request->user()->id])->save();
+            $user->delete();
+        });
 
         return response()->json(status: 204);
     }

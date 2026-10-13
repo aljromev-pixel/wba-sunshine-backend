@@ -31,14 +31,18 @@ class ProductController extends Controller
             return $product;
         });
 
-        return (new ProductResource($product))->response()->setStatusCode(201);
+        return (new ProductResource($product->fresh()))->response()->setStatusCode(201);
     }
 
     public function update(UpdateProductRequest $request, Product $product): JsonResponse
     {
         DB::transaction(function () use ($request, $product): void {
             $product = Product::query()->lockForUpdate()->findOrFail($product->id);
-            $product->update($this->attributes($request->validated()));
+            $data = $request->validated();
+            if (($data['demandPattern'] ?? $product->demand_pattern) === 'Perishable-Rotating' && $product->batches()->where('quantity', '>', 0)->whereNull('expires_at')->exists()) {
+                throw ValidationException::withMessages(['demandPattern' => ['Record verified expiry dates for stocked batches before classifying this product as perishable.']]);
+            }
+            $product->update($this->attributes($data));
             $this->audit($request, 'Product updated', $product, $product->name);
         });
 
@@ -51,13 +55,14 @@ class ProductController extends Controller
 
         DB::transaction(function () use ($request, $product): void {
             $product = Product::query()->lockForUpdate()->findOrFail($product->id);
-            if ($product->batches()->exists() || $product->movements()->exists() || $product->adjustments()->exists()) {
+            if ($product->stock > 0 || $product->batches()->exists() || $product->movements()->exists() || $product->adjustments()->exists()) {
                 throw ValidationException::withMessages([
                     'product' => ['Products with inventory history cannot be deleted.'],
                 ]);
             }
 
             $this->audit($request, 'Product deleted', $product, $product->name);
+            $product->forceFill(['deleted_by' => $request->user()->id])->save();
             $product->delete();
         });
 
@@ -80,6 +85,11 @@ class ProductController extends Controller
         ];
         if (array_key_exists('stock', $data)) {
             $attributes['stock'] = $data['stock'];
+        }
+        foreach (['demandPattern' => 'demand_pattern', 'monthlySalesHistory' => 'monthly_sales_history', 'seasonalProfile' => 'seasonal_profile'] as $input => $column) {
+            if (array_key_exists($input, $data)) {
+                $attributes[$column] = $data[$input];
+            }
         }
 
         return $attributes;
