@@ -18,6 +18,7 @@ class BatchResource extends JsonResource
             'id' => $this->id,
             'productId' => $this->product_id,
             'number' => $this->number,
+            'location' => $this->location,
             'quantity' => $this->quantity,
             'receivedAt' => $this->received_at?->toDateString(),
             'expiresAt' => $this->expires_at?->toDateString(),

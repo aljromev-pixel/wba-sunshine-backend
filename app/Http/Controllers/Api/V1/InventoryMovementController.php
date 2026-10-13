@@ -9,6 +9,9 @@ use App\Models\AuditLog;
 use App\Models\Batch;
 use App\Models\InventoryMovement;
 use App\Models\Product;
+use App\Models\User;
+use App\Support\WarehouseStock;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -20,9 +23,27 @@ class InventoryMovementController extends Controller
         $movement = DB::transaction(function () use ($request): InventoryMovement {
             $data = $request->validated();
             $product = Product::query()->lockForUpdate()->findOrFail($data['productId']);
+            User::query()->lockForUpdate()->findOrFail($request->user()->id);
+            $fingerprint = WarehouseStock::fingerprint($data);
+            if (isset($data['requestId'])) {
+                $existing = InventoryMovement::query()->where('user_id', $request->user()->id)->where('request_id', $data['requestId'])->first();
+                if ($existing !== null) {
+                    WarehouseStock::assertSameRequest($existing->request_fingerprint, $fingerprint);
+
+                    return $existing->load(['batch:id,number', 'user:id,name']);
+                }
+            }
+            WarehouseStock::initializeOpeningBalance($product, $request->user());
+            WarehouseStock::assertBalanced($product);
             $batch = $this->resolveBatch($data, $product);
             $quantity = $data['quantity'];
             $increasesStock = in_array($data['type'], ['Stock In', 'Return'], true);
+            $transfer = $data['type'] === 'Transfer';
+            $before = $product->stock;
+            $batchBefore = $batch->quantity;
+            if ($batch->expires_at !== null && $batch->expires_at->lt(today())) {
+                throw ValidationException::withMessages(['batchId' => ['Expired batches cannot be received, returned, dispatched or transferred as usable stock.']]);
+            }
 
             if (! $increasesStock && $product->stock < $quantity) {
                 throw ValidationException::withMessages([
@@ -36,7 +57,33 @@ class InventoryMovementController extends Controller
                 ]);
             }
 
-            $product->increment('stock', $increasesStock ? $quantity : -$quantity);
+            $destination = null;
+            if ($transfer) {
+                $location = trim($data['destinationLocation']);
+                if (strcasecmp($location, trim($batch->location)) === 0) {
+                    throw ValidationException::withMessages(['destinationLocation' => ['Choose a different storage location.']]);
+                }
+                $originId = $batch->origin_batch_id ?? $batch->id;
+                $destination = Batch::query()->where('product_id', $product->id)
+                    ->where(fn (Builder $query): Builder => $query->where('origin_batch_id', $originId)->orWhere('id', $originId))
+                    ->whereRaw('LOWER(location) = ?', [strtolower($location)])
+                    ->lockForUpdate()->first();
+                if ($destination === null) {
+                    $destination = Batch::query()->create([
+                        'product_id' => $product->id,
+                        'origin_batch_id' => $originId,
+                        'number' => 'TRANSFER-'.str()->uuid(),
+                        'quantity' => 0,
+                        'received_at' => $batch->received_at,
+                        'expires_at' => $batch->expires_at,
+                        'location' => $location,
+                    ]);
+                }
+                $destination->increment('quantity', $quantity);
+            } else {
+                $product->increment('stock', $increasesStock ? $quantity : -$quantity);
+            }
+            $product->increment('stock_version');
 
             if ($batch !== null) {
                 $batch->increment('quantity', $increasesStock ? $quantity : -$quantity);
@@ -49,6 +96,16 @@ class InventoryMovementController extends Controller
                 'type' => $data['type'],
                 'quantity' => $quantity,
                 'reference' => $data['reference'] ?? null,
+                'stock_before' => $before,
+                'stock_after' => $product->stock,
+                'batch_before' => $batchBefore,
+                'batch_after' => $batch->quantity,
+                'destination_batch_id' => $destination?->id,
+                'source_location' => $increasesStock ? null : $batch->location,
+                'destination_location' => $destination?->location ?? ($increasesStock ? $batch->location : null),
+                'return_condition' => $data['returnCondition'] ?? null,
+                'request_id' => $data['requestId'] ?? null,
+                'request_fingerprint' => $fingerprint,
             ]);
 
             AuditLog::query()->create([
@@ -93,13 +150,17 @@ class InventoryMovementController extends Controller
                 'batchId' => ['A batch is required for this movement type.'],
             ]);
         }
+        if (isset($data['batchNumber']) && Batch::query()->where('number', $data['batchNumber'])->exists()) {
+            throw ValidationException::withMessages(['batchNumber' => ['That receiving batch number already exists. Select the existing batch or enter a unique number.']]);
+        }
 
         return Batch::query()->create([
             'product_id' => $product->id,
-            'number' => $data['batchNumber'] ?? 'REC-'.now()->format('YmdHisv'),
+            'number' => $data['batchNumber'] ?? 'REC-'.str()->uuid(),
             'quantity' => 0,
             'received_at' => now()->toDateString(),
             'expires_at' => $data['expiresAt'] ?? null,
+            'location' => $data['location'] ?? 'Main warehouse',
         ]);
     }
 }

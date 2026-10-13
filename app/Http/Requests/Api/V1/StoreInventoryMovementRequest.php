@@ -34,7 +34,11 @@ class StoreInventoryMovementRequest extends FormRequest
             'batchNumber' => ['nullable', 'string', 'max:255'],
             'expiresAt' => ['nullable', 'date'],
             'quantity' => ['required', 'integer', 'min:1'],
-            'reference' => ['nullable', 'string', 'max:255'],
+            'reference' => ['required', 'string', 'max:255'],
+            'location' => ['sometimes', 'required', 'string', 'max:100'],
+            'destinationLocation' => ['required_if:type,Transfer', 'nullable', 'string', 'max:100'],
+            'returnCondition' => ['required_if:type,Return', 'nullable', Rule::in(['Resaleable'])],
+            'requestId' => ['sometimes', 'required', 'uuid'],
         ];
     }
 }

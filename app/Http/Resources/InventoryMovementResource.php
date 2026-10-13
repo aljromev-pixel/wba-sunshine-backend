@@ -24,6 +24,14 @@ class InventoryMovementResource extends JsonResource
             'user' => $this->user?->name,
             'reference' => $this->reference,
             'status' => $this->status,
+            'stockBefore' => $this->stock_before,
+            'stockAfter' => $this->stock_after,
+            'batchBefore' => $this->batch_before,
+            'batchAfter' => $this->batch_after,
+            'sourceLocation' => $this->source_location,
+            'destinationLocation' => $this->destination_location,
+            'destinationBatchId' => $this->destination_batch_id,
+            'returnCondition' => $this->return_condition,
         ];
     }
 }

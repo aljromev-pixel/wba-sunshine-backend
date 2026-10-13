@@ -26,9 +26,10 @@ class StoreBatchRequest extends FormRequest
         return [
             'productId' => ['required', 'integer', Rule::exists('products', 'id')],
             'number' => ['required', 'string', 'max:255', Rule::unique('batches', 'number')],
+            'location' => ['sometimes', 'required', 'string', 'max:100'],
             'quantity' => ['required', 'integer', 'min:0'],
             'receivedAt' => ['required', 'date'],
-            'expiresAt' => ['nullable', 'date', 'after_or_equal:receivedAt'],
+            'expiresAt' => ['nullable', 'date', 'after_or_equal:receivedAt', ...($this->integer('quantity') > 0 ? ['after_or_equal:'.today()->toDateString()] : [])],
         ];
     }
 
