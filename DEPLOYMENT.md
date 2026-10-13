@@ -70,6 +70,8 @@ generator for APP_KEY: Laravel requires a correctly sized key.
 | `APP_DEBUG` | `false` |
 | `APP_KEY` | Generated Laravel key; secret |
 | `APP_URL` | Actual `https://YOUR-SERVICE.onrender.com` URL |
+| `APP_TIMEZONE` | `Asia/Manila`, or the warehouse's IANA timezone |
+| `SANCTUM_EXPIRATION_MINUTES` | `720` (12-hour token lifetime) |
 | `PORT` | `10000` |
 | `DB_CONNECTION` | `pgsql` |
 | `DB_HOST` | Exact Supabase **Session pooler** hostname |
@@ -181,15 +183,51 @@ demos. Uploaded files would need durable object storage; this setup does not add
 [Render free limits](https://render.com/docs/free),
 [Supabase project pausing](https://supabase.com/docs/guides/platform/free-project-pausing).
 
-## Application sign-off still required
+## Stock-control upgrade and remaining deployment checks
 
-Frontend reports now explicitly calculate from the Laravel inventory API snapshot;
-see the frontend README for rules and assumptions. Backend adjustment
-approval can overwrite stock changed since submission and does not reconcile batch
-quantities; product stock editing also needs a consistent reconciliation rule.
-Expired batches still need backend write rejection. Audit/adjustment reads need
-role filtering in the combined inventory endpoint, and expiry alert calculations
-need correction. Resolve and retest these before production use with real records.
-Sanctum tokens currently have no automatic expiry; define a token lifetime and
-revocation policy before production sign-off.
-Deployment preparation is not a claim that these business/security issues are fixed.
+The stock-control migration adds batch locations, stock versions, before/after
+movement balances, counted batch allocations, and duplicate-request identifiers.
+Create an external database backup and verify restoration into a separate test
+database **before deploying this migration**. Render startup runs pending migrations
+automatically, so take the backup before pushing to the deployed branch. Never test
+restoration over the production project.
+
+Supabase Free does not include scheduled project backups. Keep a database export
+outside Git in secure storage; use Supabase's documented CLI export procedure and
+verify that it includes the Laravel tables, their data, and sequence values. Record
+the export date and verify a restoration rather than treating an untested file as
+a recovery plan. See [Supabase database backups](https://supabase.com/docs/guides/platform/backups).
+No backup or restore rehearsal is supplied by the application repository.
+
+New product opening stock is allocated to an opening batch with a ledger record.
+Legacy stock greater than allocated batch quantities is allocated on the next
+authorized stock operation without changing the warehouse total. Existing batches
+whose combined quantities exceed product stock require a physical count and an
+authorized adjustment; the application does not silently discard quantities.
+
+Product metadata editing cannot change stock. Transfers move quantities between
+locations inside the same warehouse and leave total stock unchanged. Return is
+limited to inspected, resaleable goods. Expired batches cannot be received,
+returned, dispatched, or transferred as usable stock. Counts record every batch
+allocation; approval updates product and batch quantities together and rejects
+requests whose stock version has changed. Pending requests created before this
+migration must be rejected and resubmitted with a fresh count. Historical movement
+balances remain unrecorded where the original records did not store them.
+
+The frontend supplies a request UUID for movement/count submissions and reuses it
+after uncertain failures. Replaying the same request does not repeat a write;
+reusing its UUID with changed values is rejected. Older clients that omit the UUID
+do not receive this protection. After other uncertain CRUD failures, refresh and
+verify the result before submitting another change.
+
+Audit access is filtered on the backend, non-reviewers see only their own
+adjustments, and the last active administrator cannot be demoted. Sanctum tokens
+expire after 720 minutes by default; logout revokes the current token. Use
+`SANCTUM_EXPIRATION_MINUTES` to change the session policy. Warehouse calendar dates
+use `APP_TIMEZONE`. Verify expired-session handling on the deployed frontend.
+
+Reports are client-calculated from persisted API data. History is paginated, and
+historical reports load all permitted pages before allowing print/CSV export.
+Before real warehouse use, complete PostgreSQL CI, hosted integration checks,
+backup/restore verification, and a physical reconciliation of legacy records.
+Local SQLite and browser checks alone do not establish production sign-off.
