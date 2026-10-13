@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Api\V1;
 
+use App\Models\Product;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -34,6 +35,15 @@ class UpdateProductRequest extends FormRequest
             'leadTime' => ['required', 'integer', 'min:0', 'max:365'],
             'unit' => ['required', 'string', 'max:100'],
             'monthlySales' => ['required', 'integer', 'min:0'],
+            'demandPattern' => ['sometimes', 'required', Rule::in(Product::DEMAND_PATTERNS)],
+            'monthlySalesHistory' => ['sometimes', 'array', 'max:60'],
+            'monthlySalesHistory.*' => ['required', 'array:month,quantity'],
+            'monthlySalesHistory.*.month' => ['required', 'date_format:Y-m', 'before:'.today()->startOfMonth()->toDateString(), 'distinct'],
+            'monthlySalesHistory.*.quantity' => ['required', 'integer', 'min:0', 'max:2147483647'],
+            'seasonalProfile' => ['sometimes', 'array', 'max:12'],
+            'seasonalProfile.*' => ['required', 'array:month,multiplier'],
+            'seasonalProfile.*.month' => ['required', 'integer', 'min:1', 'max:12', 'distinct'],
+            'seasonalProfile.*.multiplier' => ['required', 'numeric', 'min:0', 'max:10'],
         ];
     }
 

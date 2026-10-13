@@ -20,6 +20,7 @@ class ProductResource extends JsonResource
             'name' => $this->name,
             'category' => $this->category,
             'stock' => $this->stock,
+            'usableStock' => $this->resource->usableStock(),
             'stockVersion' => $this->stock_version,
             'batchStock' => $this->batches_sum_quantity === null ? null : (int) $this->batches_sum_quantity,
             'reorderPoint' => $this->reorder_point,
@@ -28,6 +29,9 @@ class ProductResource extends JsonResource
             'leadTime' => $this->lead_time,
             'unit' => $this->unit,
             'monthlySales' => $this->monthly_sales,
+            'demandPattern' => $this->demand_pattern,
+            'monthlySalesHistory' => $this->monthly_sales_history ?? [],
+            'seasonalProfile' => $this->seasonal_profile ?? [],
         ];
     }
 }

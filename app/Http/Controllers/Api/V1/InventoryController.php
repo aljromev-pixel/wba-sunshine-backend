@@ -14,6 +14,7 @@ use App\Models\InventoryAdjustment;
 use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Support\InventoryPermissions;
+use App\Support\InventoryUpdates;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,7 +24,7 @@ class InventoryController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $products = Product::query()->withSum('batches', 'quantity')->orderBy('name')->get();
+        $products = Product::query()->withSum('batches', 'quantity')->withSum(['batches as usable_stock' => fn (Builder $query): Builder => $query->where(fn (Builder $dates): Builder => $dates->whereNull('expires_at')->orWhereDate('expires_at', '>=', today()))], 'quantity')->orderBy('name')->get();
         $batches = Batch::query()->orderBy('received_at')->get();
         [$movements, $movementMeta] = $this->firstHistoryPage($request, 'transactions');
         [$adjustments, $adjustmentMeta] = $this->firstHistoryPage($request, 'adjustments');
@@ -43,6 +44,7 @@ class InventoryController extends Controller
             'history' => ['transactions' => $movementMeta, 'adjustments' => $adjustmentMeta, 'audit' => $auditMeta],
             'loadedAt' => now()->toIso8601String(),
             'warehouseTimezone' => config('app.timezone'),
+            'notificationSummary' => ['unreadCount' => InventoryUpdates::notifications($request->user())->whereNull('read_at')->count()],
         ]);
     }
 
@@ -108,12 +110,13 @@ class InventoryController extends Controller
         $alerts = [];
 
         foreach ($products as $product) {
-            if ($product->stock <= $product->reorder_point) {
+            $usable = $product->usableStock();
+            if ($usable <= $product->reorder_point) {
                 $alerts[] = [
                     'id' => "low-{$product->id}",
                     'type' => 'Low Stock',
                     'product' => $product->name,
-                    'detail' => "{$product->stock} {$product->unit} available; reorder point is {$product->reorder_point}",
+                    'detail' => "{$usable} {$product->unit} usable; {$product->stock} on hand; reorder point is {$product->reorder_point}",
                     'severity' => 'High',
                     'date' => now()->toIso8601String(),
                 ];
@@ -152,6 +155,9 @@ class InventoryController extends Controller
         }
 
         foreach ($adjustments->where('status', 'Pending') as $adjustment) {
+            if ($adjustment->requested_qty === $adjustment->system_qty) {
+                continue;
+            }
             $alerts[] = [
                 'id' => "dis-{$adjustment->id}",
                 'type' => 'Inventory Discrepancy',
