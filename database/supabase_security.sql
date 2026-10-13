@@ -1,7 +1,7 @@
--- WBA: Laravel owns authentication; the browser must use the Laravel API.
+-- WBA: restricted application-table baseline; the browser uses the Laravel API.
 -- Run as postgres in Supabase SQL Editor. No application rows are changed.
--- RLS intentionally has no browser-user policies. Do not FORCE RLS on the
--- table-owner connection used by Laravel. No auth.users/profile bridge is needed.
+-- Apply the Admin/Staff Auth bridge after this baseline to restore limited profile
+-- column grants. Do not FORCE RLS on the table-owner connection used by Laravel.
 BEGIN;
 SET LOCAL lock_timeout = '5s';
 

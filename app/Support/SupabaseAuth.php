@@ -83,8 +83,14 @@ class SupabaseAuth
         return $token;
     }
 
-    public function changePassword(string $token, string $currentPassword, string $password): void
+    public function changePassword(User $user, string $token, string $currentPassword, string $password): void
     {
+        $verification = $this->signIn($user->email, $currentPassword, 'current_password');
+        try {
+            abort_unless($verification['user']['id'] === $user->auth_user_id, 503, 'The authentication account mapping changed.');
+        } finally {
+            $this->signOut($verification['access_token']);
+        }
         $response = $this->send(fn (): Response => $this->client(token: $token)->put('user', ['current_password' => $currentPassword, 'password' => $password]));
         if (in_array($response->status(), [400, 401, 422], true)) {
             throw ValidationException::withMessages(['current_password' => ['The current password could not be verified, or the new password does not meet the authentication policy.']]);
@@ -159,11 +165,12 @@ class SupabaseAuth
     private function client(bool $admin = false, ?string $token = null): PendingRequest
     {
         $url = rtrim((string) config('services.supabase.url'), '/');
-        $key = (string) config($admin ? 'services.supabase.service_role_key' : 'services.supabase.publishable_key');
+        $key = (string) ($admin ? (config('services.supabase.secret_key') ?: config('services.supabase.service_role_key')) : config('services.supabase.publishable_key'));
         abort_unless(str_starts_with($url, 'https://') && $key !== '', 503, 'Supabase authentication is not configured. Contact your administrator.');
 
-        return Http::baseUrl($url.'/auth/v1/')->acceptJson()->asJson()->withHeaders(['apikey' => $key])
-            ->withToken($token ?? $key)->connectTimeout(5)->timeout(15);
+        $client = Http::baseUrl($url.'/auth/v1/')->acceptJson()->asJson()->withHeaders(['apikey' => $key])->connectTimeout(5)->timeout(15);
+
+        return $token !== null || ! str_starts_with($key, 'sb_') ? $client->withToken($token ?? $key) : $client;
     }
 
     /** @param callable(): Response $operation */

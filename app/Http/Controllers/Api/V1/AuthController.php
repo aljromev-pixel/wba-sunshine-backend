@@ -72,7 +72,7 @@ class AuthController extends Controller
             $user = DB::transaction(function () use ($request, $provider): User {
                 $user = User::query()->lockForUpdate()->findOrFail($request->user()->id);
                 abort_unless($user->is_active, 401);
-                $provider->changePassword($request->bearerToken(), $request->validated('current_password'), $request->validated('password'));
+                $provider->changePassword($user, $request->bearerToken(), $request->validated('current_password'), $request->validated('password'));
                 $user->update(['password' => null, 'must_change_password' => false]);
                 $user->tokens()->delete();
                 AuditLog::query()->create([

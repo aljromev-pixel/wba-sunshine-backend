@@ -379,7 +379,7 @@ completed hosted migration.
    without a portal ability are revoked by the SQL; employees sign in again through
    the correct page. The SQL can also be pasted as one file in SQL Editor, as postgres.
 3. Configure server-only `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and
-   `SUPABASE_SERVICE_ROLE_KEY` on a trusted PHP runner with PostgreSQL support. Keep
+   `SUPABASE_SECRET_KEY` on a trusted PHP runner with PostgreSQL support. Keep
    the same project URL on import reruns. Never put the service key in Vite or Git.
 4. Run `php artisan app:import-supabase-users` for a read-only inventory. Once backup,
    restore and employee email ownership are actually verified, run:
@@ -414,3 +414,5 @@ claiming a changed hash was synchronized through an unsupported API. Supabase Au
 supports hash import on creation. The fingerprint is a digest of the salted stored
 hash, not a password or original credential hash, and is used only as migration
 provenance. Finish the import and cutover in a controlled maintenance window.
+
+New publishable/secret keys use the apikey header; signed user JWTs use Bearer authentication. SUPABASE_SERVICE_ROLE_KEY remains a legacy JWT-key fallback. The server explicitly verifies the current password through Supabase before allowing a password change, independently of optional project password-update settings.

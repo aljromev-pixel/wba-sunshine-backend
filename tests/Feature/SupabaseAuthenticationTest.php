@@ -154,6 +154,13 @@ class SupabaseAuthenticationTest extends TestCase
                 return Http::response(['id' => $user->auth_user_id]);
             }
 
+            if (str_contains($request->url(), '/logout')) {
+                return Http::response(null, 204);
+            }
+            if ($request->method() === 'POST' && $request['password'] === 'old-test-password') {
+                return Http::response(['access_token' => 'password-verification-token', 'expires_in' => 3600, 'user' => ['id' => $user->auth_user_id]]);
+            }
+
             return $request->method() === 'PUT' ? Http::response(['id' => $user->auth_user_id]) : Http::response([], 500);
         });
         $this->withToken($token)->postJson('/api/v1/auth/password', [
@@ -163,5 +170,37 @@ class SupabaseAuthenticationTest extends TestCase
         $this->assertNull($user->fresh()->password);
         $this->assertDatabaseCount('personal_access_tokens', 0);
         $this->assertDatabaseHas('audit_logs', ['action' => 'Password changed']);
+    }
+
+    public function test_wrong_current_password_is_rejected_even_without_provider_password_update_settings(): void
+    {
+        $user = User::factory()->create(['auth_user_id' => (string) Str::uuid(), 'must_change_password' => true]);
+        $token = app(SupabaseAuth::class)->issueSession($user, ['access_token' => 'wrong-current-password-token', 'expires_in' => 3600]);
+        Http::fake(['*/user' => Http::response(['id' => $user->auth_user_id]), '*/token?grant_type=password' => Http::response([], 400)]);
+        $this->withToken($token)->postJson('/api/v1/auth/password', [
+            'current_password' => 'wrong-test-password', 'password' => 'new-test-password', 'password_confirmation' => 'new-test-password',
+        ])->assertUnprocessable()->assertJsonValidationErrors('current_password');
+        $this->assertTrue($user->fresh()->must_change_password);
+        $this->assertDatabaseCount('personal_access_tokens', 1);
+        $this->assertDatabaseCount('audit_logs', 0);
+        Http::assertNotSent(fn ($request): bool => $request->method() === 'PUT');
+    }
+
+    public function test_new_api_keys_use_apikey_headers_and_user_sessions_use_bearer_jwts(): void
+    {
+        $uuid = (string) Str::uuid();
+        config(['services.supabase.publishable_key' => 'sb_publishable_test_only', 'services.supabase.secret_key' => 'sb_secret_test_only']);
+        Http::fake([
+            '*/token?grant_type=password' => Http::response(['access_token' => 'user-test-jwt', 'expires_in' => 3600, 'user' => ['id' => $uuid]]),
+            '*/admin/users/'.$uuid => Http::response(['id' => $uuid]),
+            '*/user' => Http::response(['id' => $uuid]),
+        ]);
+        $provider = app(SupabaseAuth::class);
+        $provider->signIn('member@example.test', 'private-test-password');
+        $provider->account($uuid);
+        $provider->identity('user-test-jwt');
+        Http::assertSent(fn ($request): bool => $request->method() === 'POST' && $request->hasHeader('apikey', 'sb_publishable_test_only') && ! $request->hasHeader('Authorization'));
+        Http::assertSent(fn ($request): bool => str_contains($request->url(), '/admin/users/') && $request->hasHeader('apikey', 'sb_secret_test_only') && ! $request->hasHeader('Authorization'));
+        Http::assertSent(fn ($request): bool => str_ends_with($request->url(), '/user') && $request->hasHeader('Authorization', 'Bearer user-test-jwt'));
     }
 }

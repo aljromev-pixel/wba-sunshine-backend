@@ -2,6 +2,7 @@
 
 return [
     'supabase' => [
+        'secret_key' => env('SUPABASE_SECRET_KEY'),
         'url' => env('SUPABASE_URL'),
         'publishable_key' => env('SUPABASE_PUBLISHABLE_KEY'),
         'service_role_key' => env('SUPABASE_SERVICE_ROLE_KEY'),
