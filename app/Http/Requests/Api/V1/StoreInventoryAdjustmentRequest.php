@@ -31,6 +31,11 @@ class StoreInventoryAdjustmentRequest extends FormRequest
             'productId' => ['required', 'integer', Rule::exists('products', 'id')],
             'requestedQty' => ['required', 'integer', 'min:0'],
             'reason' => ['required', 'string', 'max:1000'],
+            'expectedStockVersion' => ['sometimes', 'nullable', 'integer', 'min:0'],
+            'batchCounts' => ['sometimes', 'array', 'min:1'],
+            'batchCounts.*.batchId' => ['required', 'integer', 'min:0', 'distinct'],
+            'batchCounts.*.quantity' => ['required', 'integer', 'min:0'],
+            'requestId' => ['sometimes', 'required', 'uuid'],
         ];
     }
 }

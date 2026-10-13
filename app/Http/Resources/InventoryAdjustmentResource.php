@@ -20,6 +20,8 @@ class InventoryAdjustmentResource extends JsonResource
             'systemQty' => $this->system_qty,
             'requestedQty' => $this->requested_qty,
             'reason' => $this->reason,
+            'batchCounts' => $this->batch_counts,
+            'stockVersion' => $this->stock_version,
             'requestedById' => $this->requested_by,
             'requestedBy' => $this->requestedBy?->name,
             'reviewedBy' => $this->reviewedBy?->name,
