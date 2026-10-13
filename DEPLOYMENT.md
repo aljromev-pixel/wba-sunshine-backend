@@ -231,3 +231,27 @@ historical reports load all permitted pages before allowing print/CSV export.
 Before real warehouse use, complete PostgreSQL CI, hosted integration checks,
 backup/restore verification, and a physical reconciliation of legacy records.
 Local SQLite and browser checks alone do not establish production sign-off.
+
+## Recovery, notifications and planning upgrade
+
+Three additional migrations introduce recoverable deletion, database notifications
+and product planning profiles. Take and test an external backup before deploying.
+Only deletions made after this upgrade enter Trash; earlier permanent deletions
+cannot be recovered by these migrations. SKU, batch-number and email uniqueness
+remain reserved while records are in Trash. Restore a product before restoring
+its deleted batches. User restoration does not re-enable the account or resurrect
+revoked tokens. Existing stock/history deletion safeguards remain enforced.
+
+Movement and adjustment notifications are stored transactionally through Laravel's
+database channel. No email/SMS provider or background worker is required. Inactive
+and deleted users are excluded. Adjustment notices follow current reviewer/owner
+access, including after role changes. Existing activity is not backfilled into the
+notification inbox. Read state is scoped to each authenticated account.
+
+Product profiles store one of four demand classifications, up to 60 verified
+monthly sales totals and up to 12 calendar-month multiplier rules. New perishable
+products must begin with zero stock and be received into dated batches. Verify
+manufacturer/supplier expiry dates; receiving dates do not establish shelf life.
+Usable inventory excludes expired batches and unallocated quantities; total
+on-hand inventory remains separately visible. Review/allocate legacy discrepancies
+before relying on usable-stock figures. PostgreSQL CI and hosted checks still apply.
