@@ -54,19 +54,22 @@ class ImportSupabaseUsers extends Command
         }
         foreach ($users as $user) {
             try {
-                $id = $user->auth_user_id ?? $provider->importId($user);
-                $identity = $provider->account($id);
-                if ($identity === null) {
-                    if ($user->auth_user_id) {
-                        throw new \RuntimeException('An existing linked identity is missing; review rather than recreating it.');
-                    }
-                    $identity = $provider->createAccount($user, importHash: true);
-                }
-                if ($identity['id'] !== $id || strtolower(trim($identity['email'] ?? '')) !== $user->email || (string) ($identity['app_metadata']['wba_legacy_user_id'] ?? '') !== (string) $user->id) {
-                    throw new \RuntimeException('The identity does not match this trusted import. No account was linked.');
-                }
-                DB::transaction(function () use ($user, $id): void {
+                DB::transaction(function () use ($user, $provider): void {
                     $profile = User::withTrashed()->lockForUpdate()->findOrFail($user->id);
+                    $id = $profile->auth_user_id ?? $provider->importId($profile);
+                    $identity = $provider->account($id);
+                    if ($identity === null) {
+                        if ($profile->auth_user_id) {
+                            throw new \RuntimeException('An existing linked identity is missing; review rather than recreating it.');
+                        }
+                        $identity = $provider->createAccount($profile, importHash: true);
+                    }
+                    if ($identity['id'] !== $id || strtolower(trim($identity['email'] ?? '')) !== $profile->email || (string) ($identity['app_metadata']['wba_legacy_user_id'] ?? '') !== (string) $profile->id) {
+                        throw new \RuntimeException('The identity does not match this trusted import. No account was linked.');
+                    }
+                    if (! $provider->enabled() && ! hash_equals(hash('sha256', (string) $profile->getRawOriginal('password')), (string) ($identity['app_metadata']['wba_import_password_fingerprint'] ?? ''))) {
+                        throw new \RuntimeException('The password changed during a partial import. Administrator reconciliation is required before linking this identity.');
+                    }
                     if ($profile->auth_user_id === $id) {
                         return;
                     }

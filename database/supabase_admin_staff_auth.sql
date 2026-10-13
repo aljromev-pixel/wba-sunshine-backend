@@ -100,7 +100,8 @@ UPDATE public.users p SET auth_user_id=a.id
 FROM auth.users a
 WHERE p.auth_user_id IS NULL
   AND a.raw_app_meta_data->>'wba_legacy_user_id'=p.id::text
-  AND lower(btrim(a.email))=lower(btrim(p.email));
+  AND lower(btrim(a.email))=lower(btrim(p.email))
+  AND a.raw_app_meta_data->>'wba_import_password_fingerprint'=encode(sha256(convert_to(p.password,'UTF8')),'hex');
 CREATE INDEX IF NOT EXISTS wba_users_portal_membership
 ON public.users(department,role_level,auth_user_id) WHERE is_active AND deleted_at IS NULL;
 -- Old sessions never recorded a login portal; require a fresh, correctly scoped login.
@@ -108,13 +109,24 @@ DELETE FROM public.personal_access_tokens
 WHERE NOT (coalesce(abilities,'[]')::jsonb ?| ARRAY['portal:admin','portal:staff']);
 
 -- The helper returns one permission bit, never credentials or another account's UUID.
+CREATE OR REPLACE FUNCTION public.wba_auth_is_active()
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=''
+AS $function$
+    SELECT EXISTS (
+        SELECT 1 FROM auth.users a WHERE a.id=(SELECT auth.uid())
+          AND a.deleted_at IS NULL AND (a.banned_until IS NULL OR a.banned_until<=now())
+    );
+$function$;
+REVOKE ALL ON FUNCTION public.wba_auth_is_active() FROM PUBLIC,anon,service_role;
+GRANT EXECUTE ON FUNCTION public.wba_auth_is_active() TO authenticated;
+
 CREATE OR REPLACE FUNCTION public.wba_is_admin()
 RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=''
 AS $function$
     SELECT EXISTS (
         SELECT 1 FROM public.users p WHERE p.auth_user_id=(SELECT auth.uid())
           AND p.department='Administration' AND p.role_level='Manager'
-          AND p.is_active AND p.deleted_at IS NULL
+          AND p.is_active AND p.deleted_at IS NULL AND public.wba_auth_is_active()
     );
 $function$;
 REVOKE ALL ON FUNCTION public.wba_is_admin() FROM PUBLIC,anon,service_role;
@@ -127,7 +139,7 @@ ON public.users TO authenticated;
 DROP POLICY IF EXISTS wba_profile_read ON public.users;
 CREATE POLICY wba_profile_read ON public.users FOR SELECT TO authenticated
 USING (
-    (SELECT auth.uid()) IS NOT NULL AND is_active AND deleted_at IS NULL
+    (SELECT auth.uid()) IS NOT NULL AND (SELECT public.wba_auth_is_active()) AND is_active AND deleted_at IS NULL
     AND (
         auth_user_id=(SELECT auth.uid())
         OR ((SELECT public.wba_is_admin()) AND NOT (department='Administration' AND role_level='Manager'))

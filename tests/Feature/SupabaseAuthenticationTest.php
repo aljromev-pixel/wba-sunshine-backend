@@ -78,6 +78,17 @@ class SupabaseAuthenticationTest extends TestCase
         $this->assertDatabaseCount('personal_access_tokens', 0);
     }
 
+    #[TestWith(['banned_until'])]
+    #[TestWith(['deleted_at'])]
+    public function test_provider_disabled_identity_cannot_keep_an_existing_application_session(string $field): void
+    {
+        $user = User::factory()->create(['auth_user_id' => (string) Str::uuid()]);
+        $token = app(SupabaseAuth::class)->issueSession($user, ['access_token' => 'disabled-identity-token', 'expires_in' => 3600]);
+        Http::fake(['*/user' => Http::response(['id' => $user->auth_user_id, $field => now()->addDay()->toISOString()])]);
+        $this->withToken($token)->getJson('/api/v1/inventory')->assertUnauthorized();
+        $this->assertDatabaseCount('personal_access_tokens', 0);
+    }
+
     public function test_unassigned_supabase_identity_is_rejected_without_auto_creating_a_profile(): void
     {
         Http::fake([

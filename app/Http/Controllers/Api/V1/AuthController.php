@@ -96,6 +96,7 @@ class AuthController extends Controller
         return DB::transaction(function () use ($request): JsonResponse {
             $user = User::query()->lockForUpdate()->findOrFail($request->user()->id);
             abort_unless($user->is_active, 401);
+            abort_if($user->auth_user_id !== null, 409, 'This account is awaiting the Supabase Auth cutover. Password changes are paused to preserve your imported password.');
             if (! is_string($user->password) || ! Hash::check($request->validated('current_password'), $user->password)) {
                 throw ValidationException::withMessages(['current_password' => ['The current password is incorrect.']]);
             }

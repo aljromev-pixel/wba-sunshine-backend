@@ -76,6 +76,9 @@ class UserController extends Controller
         DB::transaction(function () use ($user, $attributes, $request, $data): void {
             $administrators = User::query()->where('department', 'Administration')->where('role_level', 'Manager')->where('is_active', true)->orderBy('id')->lockForUpdate()->get();
             $user = User::query()->lockForUpdate()->findOrFail($user->id);
+            $provider = app(SupabaseAuth::class);
+            abort_if(! $provider->enabled() && $user->auth_user_id !== null, 409, 'This linked account is awaiting the Supabase Auth cutover. Account edits are paused to preserve the imported identity.');
+            abort_if($user->department === 'Administration' && $user->role_level === 'Manager' && ! $user->is($request->user()), 403);
             $keepsAdminAccess = $attributes['department'] === 'Administration' && $attributes['role_level'] === 'Manager' && $attributes['is_active'];
             if ($administrators->contains('id', $user->id) && ! $keepsAdminAccess && $administrators->count() === 1) {
                 throw ValidationException::withMessages(['roleLevel' => ['At least one active administrator must remain. Create another administrator before changing your role.']]);
@@ -94,7 +97,6 @@ class UserController extends Controller
             if ($user->wasChanged('is_active')) {
                 $this->audit($request, $user->is_active ? 'User enabled' : 'User disabled', $user);
             }
-            $provider = app(SupabaseAuth::class);
             if ($provider->enabled()) {
                 $provider->updateAccount($user, $attributes);
                 $user->forceFill(['password' => null])->save();
@@ -124,6 +126,7 @@ class UserController extends Controller
 
         DB::transaction(function () use ($request, $user): void {
             $user = User::query()->lockForUpdate()->findOrFail($user->id);
+            abort_if($user->department === 'Administration' && $user->role_level === 'Manager' && ! $user->is($request->user()), 403);
             if ($user->inventoryMovements()->exists() || $user->requestedInventoryAdjustments()->exists() || $user->reviewedInventoryAdjustments()->exists()) {
                 throw ValidationException::withMessages(['user' => ['Users with inventory history cannot be deleted.']]);
             }

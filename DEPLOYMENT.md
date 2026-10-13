@@ -405,3 +405,12 @@ import's deterministic IDs allow safe inspection/resume instead of duplicate
 accounts. Password changes explicitly report when saved credentials require a fresh
 sign-in because the subsequent session request failed. A database commit failure
 following a successful provider change still requires reconciliation; keep backups.
+
+During staging, linked accounts reject password and user-management edits with HTTP
+409. Import holds the profile row lock while reading its current hash and linking
+its Auth identity. A trusted hash fingerprint detects changed credentials after a
+partial remote write; retries stop for administrator reconciliation rather than
+claiming a changed hash was synchronized through an unsupported API. Supabase Auth
+supports hash import on creation. The fingerprint is a digest of the salted stored
+hash, not a password or original credential hash, and is used only as migration
+provenance. Finish the import and cutover in a controlled maintenance window.

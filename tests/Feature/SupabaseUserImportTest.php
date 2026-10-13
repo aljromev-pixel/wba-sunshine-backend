@@ -34,7 +34,7 @@ class SupabaseUserImportTest extends TestCase
         $user = User::factory()->create();
         $hash = $user->getRawOriginal('password');
         $uuid = app(SupabaseAuth::class)->importId($user);
-        $identity = ['id' => $uuid, 'email' => $user->email, 'app_metadata' => ['wba_legacy_user_id' => (string) $user->id]];
+        $identity = ['id' => $uuid, 'email' => $user->email, 'app_metadata' => ['wba_legacy_user_id' => (string) $user->id, 'wba_import_password_fingerprint' => hash('sha256', $hash)]];
         Http::fake([
             '*/admin/users/'.$uuid => Http::sequence()->push([], 404)->push($identity),
             '*/admin/users' => Http::response($identity, 200),
@@ -58,6 +58,38 @@ class SupabaseUserImportTest extends TestCase
         $this->assertNull($user->fresh()->auth_user_id);
         $this->assertDatabaseCount('audit_logs', 0);
         Http::assertSentCount(1);
+    }
+
+    public function test_changed_password_during_a_partial_import_requires_reconciliation(): void
+    {
+        $user = User::factory()->create(['password' => 'new-test-password']);
+        $uuid = app(SupabaseAuth::class)->importId($user);
+        Http::fake(['*/admin/users/'.$uuid => Http::response([
+            'id' => $uuid, 'email' => $user->email,
+            'app_metadata' => ['wba_legacy_user_id' => (string) $user->id, 'wba_import_password_fingerprint' => 'old-import-fingerprint'],
+        ])]);
+        $this->artisan('app:import-supabase-users', ['--execute' => true, '--backup-confirmed' => true, '--confirm-managed-emails' => true])->assertFailed();
+        $this->assertNull($user->fresh()->auth_user_id);
+        $this->assertDatabaseCount('audit_logs', 0);
+        Http::assertSentCount(1);
+    }
+
+    public function test_linked_profiles_cannot_change_legacy_credentials_before_cutover(): void
+    {
+        $user = User::factory()->create(['password' => 'original-test-password']);
+        $user->forceFill(['auth_user_id' => app(SupabaseAuth::class)->importId($user)])->save();
+        $hash = $user->password;
+        $this->actingAs($user, 'sanctum')->postJson('/api/v1/auth/password', [
+            'current_password' => 'original-test-password', 'password' => 'new-test-password', 'password_confirmation' => 'new-test-password',
+        ])->assertConflict();
+        $this->assertSame($hash, $user->fresh()->password);
+        $admin = User::factory()->create(['department' => 'Administration', 'role_level' => 'Manager']);
+        $this->actingAs($admin, 'sanctum')->putJson('/api/v1/users/'.$user->id, [
+            'name' => 'Mika', 'lastName' => 'Santos', 'email' => $user->email, 'password' => 'new-test-password',
+            'department' => 'Warehouse', 'roleLevel' => 'Staff',
+        ])->assertConflict();
+        $this->assertSame($hash, $user->fresh()->password);
+        $this->assertDatabaseCount('audit_logs', 0);
     }
 
     public function test_finalization_requires_supabase_mode_and_removes_legacy_credentials_and_sessions(): void

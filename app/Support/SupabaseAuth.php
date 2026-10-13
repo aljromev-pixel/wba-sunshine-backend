@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -44,6 +45,18 @@ class SupabaseAuth
         $this->requireSuccess($response);
         $identity = $response->json();
         abort_unless(is_array($identity) && is_string($identity['id'] ?? null) && Str::isUuid($identity['id']), 503, 'The authentication provider returned an invalid account.');
+        if (! empty($identity['deleted_at'])) {
+            return null;
+        }
+        if (! empty($identity['banned_until'])) {
+            try {
+                if (Carbon::parse($identity['banned_until'])->isFuture()) {
+                    return null;
+                }
+            } catch (\Throwable) {
+                abort(503, 'The authentication provider returned an invalid account status.');
+            }
+        }
 
         return $identity;
     }
@@ -112,6 +125,7 @@ class SupabaseAuth
         ];
         if ($importHash) {
             $payload['password_hash'] = $user->getRawOriginal('password');
+            $payload['app_metadata']['wba_import_password_fingerprint'] = hash('sha256', $payload['password_hash']);
         } else {
             $payload['password'] = $password;
         }
