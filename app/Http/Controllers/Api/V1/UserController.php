@@ -68,6 +68,12 @@ class UserController extends Controller
         }
 
         DB::transaction(function () use ($user, $attributes, $request, $data): void {
+            $administrators = User::query()->where('department', 'Administration')->where('role_level', 'Manager')->where('is_active', true)->orderBy('id')->lockForUpdate()->get();
+            $user = User::query()->lockForUpdate()->findOrFail($user->id);
+            $keepsAdminAccess = $attributes['department'] === 'Administration' && $attributes['role_level'] === 'Manager' && $attributes['is_active'];
+            if ($administrators->contains('id', $user->id) && ! $keepsAdminAccess && $administrators->count() === 1) {
+                throw ValidationException::withMessages(['roleLevel' => ['At least one active administrator must remain. Create another administrator before changing your role.']]);
+            }
             $user->update($attributes);
             if (! empty($data['password']) || ! $user->is_active) {
                 $tokens = $user->tokens();

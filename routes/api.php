@@ -23,6 +23,7 @@ Route::prefix('v1')->group(function (): void {
 
     Route::middleware(['auth:sanctum', EnsureAccountAccess::class])->group(function (): void {
         Route::get('/inventory', [InventoryController::class, 'index'])->name('api.v1.inventory.index');
+        Route::get('/inventory/history/{section}', [InventoryController::class, 'history'])->name('api.v1.inventory.history');
         Route::post('/inventory/movements', [InventoryMovementController::class, 'store'])
             ->name('api.v1.inventory.movements.store');
         Route::post('/inventory/adjustments', [InventoryAdjustmentController::class, 'store'])

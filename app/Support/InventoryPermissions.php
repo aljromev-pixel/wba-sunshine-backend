@@ -6,6 +6,13 @@ use App\Models\User;
 
 class InventoryPermissions
 {
+    public static function canViewAudit(User $user): bool
+    {
+        return in_array($user->department.':'.$user->role_level, [
+            'Warehouse:Supervisor', 'Warehouse:Manager', 'Sales:Supervisor', 'Purchasing:Manager', 'Administration:Manager',
+        ], true);
+    }
+
     public static function canCreateMovement(User $user, string $type): bool
     {
         if (self::hasRole($user, 'Administration', 'Manager')) {
