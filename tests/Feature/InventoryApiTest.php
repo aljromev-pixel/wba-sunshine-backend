@@ -101,6 +101,7 @@ class InventoryApiTest extends TestCase
                 'productId' => $product->id,
                 'batchId' => $batch->id,
                 'quantity' => 4,
+                'reference' => 'QA excessive batch quantity',
             ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors([
