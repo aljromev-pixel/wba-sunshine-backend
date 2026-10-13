@@ -5,7 +5,9 @@ use App\Http\Controllers\Api\V1\BatchController;
 use App\Http\Controllers\Api\V1\InventoryAdjustmentController;
 use App\Http\Controllers\Api\V1\InventoryController;
 use App\Http\Controllers\Api\V1\InventoryMovementController;
+use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\ProductController;
+use App\Http\Controllers\Api\V1\TrashController;
 use App\Http\Controllers\Api\V1\UserController;
 use App\Http\Middleware\EnsureAccountAccess;
 use Illuminate\Support\Facades\Route;
@@ -23,6 +25,11 @@ Route::prefix('v1')->group(function (): void {
 
     Route::middleware(['auth:sanctum', EnsureAccountAccess::class])->group(function (): void {
         Route::get('/inventory', [InventoryController::class, 'index'])->name('api.v1.inventory.index');
+        Route::get('/trash', [TrashController::class, 'index'])->name('api.v1.trash.index');
+        Route::post('/trash/{type}/{id}/restore', [TrashController::class, 'restore'])->whereNumber('id')->name('api.v1.trash.restore');
+        Route::get('/notifications', [NotificationController::class, 'index'])->name('api.v1.notifications.index');
+        Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->name('api.v1.notifications.read-all');
+        Route::post('/notifications/{id}/read', [NotificationController::class, 'read'])->whereUuid('id')->name('api.v1.notifications.read');
         Route::get('/inventory/history/{section}', [InventoryController::class, 'history'])->name('api.v1.inventory.history');
         Route::post('/inventory/movements', [InventoryMovementController::class, 'store'])
             ->name('api.v1.inventory.movements.store');

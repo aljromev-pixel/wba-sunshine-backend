@@ -12,6 +12,7 @@ use App\Models\InventoryAdjustment;
 use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\User;
+use App\Support\InventoryUpdates;
 use App\Support\WarehouseStock;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -72,6 +73,7 @@ class InventoryAdjustmentController extends Controller
             ]);
 
             $this->writeAudit($request, 'Adjustment requested', $adjustment);
+            InventoryUpdates::adjustment($adjustment, $product, $request->user());
 
             return $adjustment->fresh(['requestedBy:id,name']);
         });
@@ -111,12 +113,13 @@ class InventoryAdjustmentController extends Controller
                 }
                 $product->update(['stock' => $adjustment->requested_qty, 'stock_version' => $product->stock_version + 1]);
                 WarehouseStock::assertBalanced($product);
-                InventoryMovement::query()->create([
+                $movement = InventoryMovement::query()->create([
                     'product_id' => $product->id, 'user_id' => $request->user()->id,
                     'type' => 'Adjustment', 'quantity' => abs($product->stock - $before),
                     'reference' => 'Approved adjustment '.$adjustment->id,
                     'stock_before' => $before, 'stock_after' => $product->stock,
                 ]);
+                InventoryUpdates::movement($movement, $product, $request->user());
             }
 
             $adjustment->update([
@@ -125,6 +128,7 @@ class InventoryAdjustmentController extends Controller
                 'reviewed_at' => now(),
             ]);
             $this->writeAudit($request, $approved ? 'Adjustment approved' : 'Adjustment rejected', $adjustment);
+            InventoryUpdates::adjustment($adjustment, $product, $request->user());
 
             return $adjustment->load(['requestedBy:id,name', 'reviewedBy:id,name']);
         });

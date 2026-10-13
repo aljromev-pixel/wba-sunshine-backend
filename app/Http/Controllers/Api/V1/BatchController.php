@@ -10,6 +10,7 @@ use App\Models\AuditLog;
 use App\Models\Batch;
 use App\Models\InventoryMovement;
 use App\Models\Product;
+use App\Support\InventoryUpdates;
 use App\Support\WarehouseStock;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -29,6 +30,9 @@ class BatchController extends Controller
         $batch = DB::transaction(function () use ($request): Batch {
             $data = $request->validated();
             $product = Product::query()->lockForUpdate()->findOrFail($data['productId']);
+            if ($product->demand_pattern === 'Perishable-Rotating' && empty($data['expiresAt'])) {
+                throw ValidationException::withMessages(['expiresAt' => ['An expiry date is required for perishable stock. Use the supplier or manufacturer expiry date.']]);
+            }
             WarehouseStock::initializeOpeningBalance($product, $request->user());
             WarehouseStock::assertBalanced($product);
             $before = $product->stock;
@@ -43,7 +47,7 @@ class BatchController extends Controller
             $product->increment('stock', $batch->quantity);
             $product->increment('stock_version');
             if ($batch->quantity > 0) {
-                InventoryMovement::query()->create([
+                $movement = InventoryMovement::query()->create([
                     'product_id' => $product->id,
                     'batch_id' => $batch->id,
                     'user_id' => $request->user()->id,
@@ -56,6 +60,7 @@ class BatchController extends Controller
                     'batch_after' => $batch->quantity,
                     'destination_location' => $batch->location,
                 ]);
+                InventoryUpdates::movement($movement, $product, $request->user());
             }
             $this->audit($request, 'Batch created', $batch, "{$batch->number} — {$batch->quantity} {$product->unit}");
 
@@ -70,6 +75,9 @@ class BatchController extends Controller
         $data = $request->validated();
         DB::transaction(function () use ($request, $batch, $data): void {
             $product = Product::query()->lockForUpdate()->findOrFail($batch->product_id);
+            if ($product->demand_pattern === 'Perishable-Rotating' && empty($data['expiresAt'])) {
+                throw ValidationException::withMessages(['expiresAt' => ['An expiry date is required for perishable stock.']]);
+            }
             $batch->update([
                 'number' => $data['number'],
                 'received_at' => $data['receivedAt'],
@@ -99,6 +107,7 @@ class BatchController extends Controller
             }
 
             $this->audit($request, 'Batch deleted', $batch, $batch->number);
+            $batch->forceFill(['deleted_by' => $request->user()->id])->save();
             $batch->delete();
             $product->increment('stock_version');
         });

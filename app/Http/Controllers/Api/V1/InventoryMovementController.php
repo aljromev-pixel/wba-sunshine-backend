@@ -10,6 +10,7 @@ use App\Models\Batch;
 use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\User;
+use App\Support\InventoryUpdates;
 use App\Support\WarehouseStock;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -37,6 +38,9 @@ class InventoryMovementController extends Controller
             WarehouseStock::assertBalanced($product);
             $batch = $this->resolveBatch($data, $product);
             $quantity = $data['quantity'];
+            if ($product->demand_pattern === 'Perishable-Rotating' && $batch->expires_at === null) {
+                throw ValidationException::withMessages(['expiresAt' => ['Perishable batches require a verified expiry date before recording movements.']]);
+            }
             $increasesStock = in_array($data['type'], ['Stock In', 'Return'], true);
             $transfer = $data['type'] === 'Transfer';
             $before = $product->stock;
@@ -117,6 +121,8 @@ class InventoryMovementController extends Controller
                 'reference' => (string) $movement->id,
                 'description' => "{$product->name} — {$quantity} {$product->unit}",
             ]);
+
+            InventoryUpdates::movement($movement, $product, $request->user());
 
             return $movement->load(['batch:id,number', 'user:id,name']);
         });
