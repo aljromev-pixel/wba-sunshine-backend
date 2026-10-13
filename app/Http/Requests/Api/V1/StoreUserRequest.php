@@ -39,6 +39,10 @@ class StoreUserRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        $email = $this->input('email');
+        if (is_string($email)) {
+            $this->merge(['email' => strtolower(trim($email))]);
+        }
         $firstName = $this->input('name');
         $lastName = $this->input('lastName');
         $this->merge(['fullName' => is_string($firstName) && ($lastName === null || is_string($lastName))

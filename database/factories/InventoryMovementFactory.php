@@ -22,7 +22,7 @@ class InventoryMovementFactory extends Factory
     {
         return [
             'product_id' => Product::factory(),
-            'batch_id' => Batch::factory(),
+            'batch_id' => fn (array $attributes): int => Batch::factory()->create(['product_id' => $attributes['product_id']])->id,
             'user_id' => User::factory(),
             'type' => fake()->randomElement(['Stock In', 'Stock Out', 'Transfer', 'Return']),
             'quantity' => fake()->numberBetween(1, 25),

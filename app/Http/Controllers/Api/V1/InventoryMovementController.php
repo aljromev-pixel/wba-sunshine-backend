@@ -42,6 +42,9 @@ class InventoryMovementController extends Controller
                 throw ValidationException::withMessages(['expiresAt' => ['Perishable batches require a verified expiry date before recording movements.']]);
             }
             $increasesStock = in_array($data['type'], ['Stock In', 'Return'], true);
+            if ($increasesStock && $quantity > 2147483647 - $product->stock) {
+                throw ValidationException::withMessages(['quantity' => ['The resulting stock exceeds the supported inventory quantity.']]);
+            }
             $transfer = $data['type'] === 'Transfer';
             $before = $product->stock;
             $batchBefore = $batch->quantity;

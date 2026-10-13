@@ -33,7 +33,7 @@ class StoreInventoryMovementRequest extends FormRequest
             'batchId' => ['nullable', 'integer', Rule::exists('batches', 'id')],
             'batchNumber' => ['nullable', 'string', 'max:255'],
             'expiresAt' => ['nullable', 'date'],
-            'quantity' => ['required', 'integer', 'min:1'],
+            'quantity' => ['required', 'integer', 'min:1', 'max:2147483647'],
             'reference' => ['required', 'string', 'max:255'],
             'location' => ['sometimes', 'required', 'string', 'max:100'],
             'destinationLocation' => ['required_if:type,Transfer', 'nullable', 'string', 'max:100'],

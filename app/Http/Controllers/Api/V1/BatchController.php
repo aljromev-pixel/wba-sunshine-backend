@@ -35,6 +35,9 @@ class BatchController extends Controller
             }
             WarehouseStock::initializeOpeningBalance($product, $request->user());
             WarehouseStock::assertBalanced($product);
+            if ($data['quantity'] > 2147483647 - $product->stock) {
+                throw ValidationException::withMessages(['quantity' => ['The resulting stock exceeds the supported inventory quantity.']]);
+            }
             $before = $product->stock;
             $batch = Batch::query()->create([
                 'product_id' => $product->id,
