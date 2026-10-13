@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['product_id', 'number', 'quantity', 'received_at', 'expires_at'])]
+#[Fillable(['product_id', 'number', 'quantity', 'received_at', 'expires_at', 'location', 'origin_batch_id'])]
 class Batch extends Model
 {
     /** @use HasFactory<BatchFactory> */

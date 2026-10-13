@@ -19,6 +19,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'lead_time',
     'unit',
     'monthly_sales',
+    'stock_version',
 ])]
 class Product extends Model
 {
@@ -44,6 +45,7 @@ class Product extends Model
     {
         return [
             'stock' => 'integer',
+            'stock_version' => 'integer',
             'reorder_point' => 'integer',
             'capacity' => 'integer',
             'lead_time' => 'integer',

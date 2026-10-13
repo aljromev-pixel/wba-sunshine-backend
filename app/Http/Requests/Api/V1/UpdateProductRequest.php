@@ -27,7 +27,7 @@ class UpdateProductRequest extends FormRequest
             'sku' => ['required', 'string', 'max:255', Rule::unique('products', 'sku')->ignore($this->route('product'))],
             'name' => ['required', 'string', 'max:255'],
             'category' => ['required', 'string', 'max:255'],
-            'stock' => ['required', 'integer', 'min:0'],
+            'stock' => ['exclude'],
             'reorderPoint' => ['required', 'integer', 'min:0'],
             'capacity' => ['nullable', 'integer', 'min:0'],
             'supplier' => ['nullable', 'string', 'max:255'],

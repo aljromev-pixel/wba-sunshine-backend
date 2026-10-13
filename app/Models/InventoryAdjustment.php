@@ -17,6 +17,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'reviewed_by',
     'status',
     'reviewed_at',
+    'stock_version',
+    'batch_counts',
+    'request_id',
+    'request_fingerprint',
 ])]
 class InventoryAdjustment extends Model
 {
@@ -44,6 +48,8 @@ class InventoryAdjustment extends Model
             'system_qty' => 'integer',
             'requested_qty' => 'integer',
             'reviewed_at' => 'datetime',
+            'batch_counts' => 'array',
+            'stock_version' => 'integer',
         ];
     }
 }

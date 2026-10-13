@@ -20,6 +20,8 @@ class ProductResource extends JsonResource
             'name' => $this->name,
             'category' => $this->category,
             'stock' => $this->stock,
+            'stockVersion' => $this->stock_version,
+            'batchStock' => $this->batches_sum_quantity === null ? null : (int) $this->batches_sum_quantity,
             'reorderPoint' => $this->reorder_point,
             'capacity' => $this->capacity,
             'supplier' => $this->supplier,

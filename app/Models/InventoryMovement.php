@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['product_id', 'batch_id', 'user_id', 'type', 'quantity', 'reference', 'status'])]
+#[Fillable(['product_id', 'batch_id', 'user_id', 'type', 'quantity', 'reference', 'status', 'stock_before', 'stock_after', 'batch_before', 'batch_after', 'destination_batch_id', 'source_location', 'destination_location', 'return_condition', 'request_id', 'request_fingerprint'])]
 class InventoryMovement extends Model
 {
     /** @use HasFactory<InventoryMovementFactory> */
