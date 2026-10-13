@@ -28,6 +28,11 @@ class User extends Authenticatable
         'Administration' => ['Manager'],
     ];
 
+    public function loginPortal(): string
+    {
+        return $this->department === 'Administration' && $this->role_level === 'Manager' ? 'admin' : 'staff';
+    }
+
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
 

@@ -8,6 +8,7 @@ use App\Http\Requests\Api\V1\UpdateUserRequest;
 use App\Http\Resources\UserResource;
 use App\Models\AuditLog;
 use App\Models\User;
+use App\Support\SupabaseAuth;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -27,18 +28,23 @@ class UserController extends Controller
     {
         $data = $request->validated();
         $user = DB::transaction(function () use ($data, $request): User {
+            $provider = app(SupabaseAuth::class);
             $user = User::query()->create([
                 'name' => $data['fullName'],
                 'first_name' => $data['name'],
                 'last_name' => $data['lastName'] ?? null,
                 'email' => $data['email'],
-                'password' => $data['password'],
+                'password' => $provider->enabled() ? null : $data['password'],
                 'department' => $data['department'],
                 'role_level' => $data['roleLevel'],
                 'is_active' => $data['isActive'] ?? true,
                 'must_change_password' => true,
             ]);
             $this->audit($request, 'User created', $user);
+            if ($provider->enabled()) {
+                $identity = $provider->createAccount($user, $data['password']);
+                $user->forceFill(['auth_user_id' => $identity['id']])->save();
+            }
 
             return $user;
         });
@@ -75,10 +81,11 @@ class UserController extends Controller
                 throw ValidationException::withMessages(['roleLevel' => ['At least one active administrator must remain. Create another administrator before changing your role.']]);
             }
             $user->update($attributes);
-            if (! empty($data['password']) || ! $user->is_active) {
+            $identityChanged = $user->wasChanged(['department', 'role_level', 'email']);
+            if (! empty($data['password']) || ! $user->is_active || $identityChanged) {
                 $tokens = $user->tokens();
                 $currentToken = $request->user()->currentAccessToken();
-                if ($user->is_active && $user->is($request->user()) && $currentToken instanceof PersonalAccessToken) {
+                if (! $identityChanged && $user->is_active && $user->is($request->user()) && $currentToken instanceof PersonalAccessToken) {
                     $tokens->where('id', '!=', $currentToken->getKey());
                 }
                 $tokens->delete();
@@ -86,6 +93,11 @@ class UserController extends Controller
             $this->audit($request, 'User updated', $user);
             if ($user->wasChanged('is_active')) {
                 $this->audit($request, $user->is_active ? 'User enabled' : 'User disabled', $user);
+            }
+            $provider = app(SupabaseAuth::class);
+            if ($provider->enabled()) {
+                $provider->updateAccount($user, $attributes);
+                $user->forceFill(['password' => null])->save();
             }
         });
 
@@ -119,6 +131,10 @@ class UserController extends Controller
             $user->tokens()->delete();
             $user->forceFill(['is_active' => false, 'deleted_by' => $request->user()->id])->save();
             $user->delete();
+            $provider = app(SupabaseAuth::class);
+            if ($provider->enabled()) {
+                $provider->updateAccount($user, ['email' => $user->email, 'is_active' => false]);
+            }
         });
 
         return response()->json(status: 204);

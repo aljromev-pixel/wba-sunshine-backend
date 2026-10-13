@@ -3,6 +3,7 @@
 use App\Models\User;
 
 return [
+    'credential_provider' => env('APP_AUTH_PROVIDER', 'laravel'),
 
     /*
     |--------------------------------------------------------------------------

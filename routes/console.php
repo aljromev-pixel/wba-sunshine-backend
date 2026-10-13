@@ -1,8 +1,10 @@
 <?php
 
 use App\Models\User;
+use App\Support\SupabaseAuth;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 Artisan::command('inspire', function () {
@@ -42,11 +44,19 @@ Artisan::command('app:bootstrap-admin', function (): int {
         return 1;
     }
 
-    User::query()->create([
-        ...$data,
-        'department' => 'Administration',
-        'role_level' => 'Manager',
-    ]);
+    DB::transaction(function () use ($data): void {
+        $provider = app(SupabaseAuth::class);
+        $user = User::query()->create([
+            ...$data,
+            'password' => $provider->enabled() ? null : $data['password'],
+            'department' => 'Administration',
+            'role_level' => 'Manager',
+        ]);
+        if ($provider->enabled()) {
+            $identity = $provider->createAccount($user, $data['password']);
+            $user->forceFill(['auth_user_id' => $identity['id']])->save();
+        }
+    });
     $this->info('Initial administrator created. Remove bootstrap credentials from Render now.');
 
     return 0;
