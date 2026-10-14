@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\User;
 use App\Support\SupabaseAuth;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -94,9 +95,22 @@ class SupabaseUserImportTest extends TestCase
 
     public function test_finalization_requires_supabase_mode_and_removes_legacy_credentials_and_sessions(): void
     {
+        if (DB::getDriverName() === 'pgsql') {
+            DB::statement('CREATE SCHEMA IF NOT EXISTS auth');
+            DB::statement('CREATE TABLE IF NOT EXISTS auth.users (id uuid PRIMARY KEY, email text, raw_app_meta_data jsonb)');
+            preg_match_all('/CREATE OR REPLACE FUNCTION public.wba_(?:require_auth_identity|finalize_auth_migration)\(\).*?\$function\$;/s', file_get_contents(database_path('supabase_admin_staff_auth.sql')), $functions);
+            $this->assertCount(2, $functions[0], 'Load the real finalization functions into the disposable PostgreSQL fixture.');
+            DB::unprepared(implode("\n", $functions[0]));
+        }
         $user = User::factory()->create();
         $uuid = app(SupabaseAuth::class)->importId($user);
         $user->forceFill(['auth_user_id' => $uuid])->save();
+        if (DB::getDriverName() === 'pgsql') {
+            DB::table('auth.users')->insert([
+                'id' => $uuid, 'email' => $user->email,
+                'raw_app_meta_data' => json_encode(['wba_legacy_user_id' => (string) $user->id], JSON_THROW_ON_ERROR),
+            ]);
+        }
         $user->createToken('old-session');
         $options = ['--execute' => true, '--backup-confirmed' => true, '--confirm-managed-emails' => true, '--finalize' => true];
         Http::fake(['*/admin/users/'.$uuid => Http::response(['id' => $uuid, 'email' => $user->email, 'app_metadata' => ['wba_legacy_user_id' => (string) $user->id]])]);
