@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Models\Batch;
 use App\Models\Product;
 use App\Models\User;
+use App\Support\InventoryPermissions;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -65,7 +66,7 @@ class TrashController extends Controller
             'products' => Product::class, 'batches' => Batch::class, 'users' => User::class, default => abort(404)
         };
         $role = $request->user()->department.':'.$request->user()->role_level;
-        abort_unless($type === 'users' ? $role === 'Administration:Manager' : in_array($role, ['Warehouse:Supervisor', 'Warehouse:Manager', 'Administration:Manager'], true), 403);
+        abort_unless($type === 'users' ? $role === 'Administration:Manager' : InventoryPermissions::canDeleteInventory($request->user()), 403);
 
         return $model;
     }

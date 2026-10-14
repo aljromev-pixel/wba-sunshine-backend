@@ -6,6 +6,18 @@ use App\Models\User;
 
 class InventoryPermissions
 {
+    public static function canMaintainCatalogue(User $user): bool
+    {
+        return self::canDeleteInventory($user) || self::hasRole($user, 'Purchasing', 'Manager');
+    }
+
+    public static function canDeleteInventory(User $user): bool
+    {
+        return self::hasRole($user, 'Warehouse', 'Supervisor')
+            || self::hasRole($user, 'Warehouse', 'Manager')
+            || self::hasRole($user, 'Administration', 'Manager');
+    }
+
     public static function canViewAudit(User $user): bool
     {
         return in_array($user->department.':'.$user->role_level, [

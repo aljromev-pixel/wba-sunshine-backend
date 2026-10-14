@@ -152,7 +152,7 @@ would alter history.
 | Sales Staff | Stock Out only | No | No | No | No | No |
 | Sales Supervisor | Stock Out only | No | No | No | No | Yes |
 | Purchasing Staff | None | No | No | No | No | No |
-| Purchasing Manager | None | No | No | Yes | No | Yes |
+| Purchasing Manager | Batch receipts through Add batch | Create/edit only; no delete or Trash | No | Yes | No | Yes |
 | Administration Manager | Stock In/Out, Transfer, Return | Yes | Yes | Yes | Yes | Yes |
 
 Purchasing has FIFO/reorder access; Purchasing Managers and Administration Managers

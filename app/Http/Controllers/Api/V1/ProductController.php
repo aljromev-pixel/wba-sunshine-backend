@@ -8,6 +8,7 @@ use App\Http\Requests\Api\V1\UpdateProductRequest;
 use App\Http\Resources\ProductResource;
 use App\Models\AuditLog;
 use App\Models\Product;
+use App\Support\InventoryPermissions;
 use App\Support\WarehouseStock;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -110,10 +111,6 @@ class ProductController extends Controller
 
     private function authorizeManagement(Request $request): void
     {
-        abort_unless(in_array("{$request->user()?->department}:{$request->user()?->role_level}", [
-            'Warehouse:Supervisor',
-            'Warehouse:Manager',
-            'Administration:Manager',
-        ], true), 403);
+        abort_unless(InventoryPermissions::canDeleteInventory($request->user()), 403);
     }
 }

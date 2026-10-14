@@ -10,6 +10,7 @@ use App\Models\AuditLog;
 use App\Models\Batch;
 use App\Models\InventoryMovement;
 use App\Models\Product;
+use App\Support\InventoryPermissions;
 use App\Support\InventoryUpdates;
 use App\Support\WarehouseStock;
 use Illuminate\Database\Eloquent\Builder;
@@ -78,6 +79,7 @@ class BatchController extends Controller
         $data = $request->validated();
         DB::transaction(function () use ($request, $batch, $data): void {
             $product = Product::query()->lockForUpdate()->findOrFail($batch->product_id);
+            $batch = Batch::query()->lockForUpdate()->findOrFail($batch->id);
             if ($product->demand_pattern === 'Perishable-Rotating' && empty($data['expiresAt'])) {
                 throw ValidationException::withMessages(['expiresAt' => ['An expiry date is required for perishable stock.']]);
             }
@@ -133,10 +135,6 @@ class BatchController extends Controller
 
     private function authorizeManagement(Request $request): void
     {
-        abort_unless(in_array("{$request->user()?->department}:{$request->user()?->role_level}", [
-            'Warehouse:Supervisor',
-            'Warehouse:Manager',
-            'Administration:Manager',
-        ], true), 403);
+        abort_unless(InventoryPermissions::canDeleteInventory($request->user()), 403);
     }
 }

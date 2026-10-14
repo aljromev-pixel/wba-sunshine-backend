@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Api\V1;
 
 use App\Models\Product;
+use App\Support\InventoryPermissions;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -14,7 +15,7 @@ class UpdateProductRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->canManageInventory();
+        return $this->user() !== null && InventoryPermissions::canMaintainCatalogue($this->user());
     }
 
     /**
@@ -45,14 +46,5 @@ class UpdateProductRequest extends FormRequest
             'seasonalProfile.*.month' => ['required', 'integer', 'min:1', 'max:12', 'distinct'],
             'seasonalProfile.*.multiplier' => ['required', 'numeric', 'min:0', 'max:10'],
         ];
-    }
-
-    private function canManageInventory(): bool
-    {
-        return in_array("{$this->user()?->department}:{$this->user()?->role_level}", [
-            'Warehouse:Supervisor',
-            'Warehouse:Manager',
-            'Administration:Manager',
-        ], true);
     }
 }

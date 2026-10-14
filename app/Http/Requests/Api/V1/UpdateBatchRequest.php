@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Api\V1;
 
+use App\Support\InventoryPermissions;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -13,7 +14,7 @@ class UpdateBatchRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->canManageInventory();
+        return $this->user() !== null && InventoryPermissions::canMaintainCatalogue($this->user());
     }
 
     /**
@@ -28,14 +29,5 @@ class UpdateBatchRequest extends FormRequest
             'receivedAt' => ['required', 'date'],
             'expiresAt' => ['nullable', 'date', 'after_or_equal:receivedAt'],
         ];
-    }
-
-    private function canManageInventory(): bool
-    {
-        return in_array("{$this->user()?->department}:{$this->user()?->role_level}", [
-            'Warehouse:Supervisor',
-            'Warehouse:Manager',
-            'Administration:Manager',
-        ], true);
     }
 }
