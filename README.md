@@ -160,6 +160,21 @@ have reports access. Notifications/read state are account-scoped. Non-reviewers
 see their own adjustment history. Self-review remains rejected by the API
 (HTTP 422) and database; unauthorized review is HTTP 403. Other administrator
 credentials remain protected from editing/deletion in user management.
+
+The guarded [presentation reset](database/supabase_presentation_reset.sql) is a
+manual, destructive demo-data operation, never a deployment migration. It preserves
+the six reviewed Administration Managers, replaces other accounts with eight
+fictional role accounts, and prepares six products, eighteen batches and twenty-five
+balanced ledger movements. All four demand tags, expired/soon/fresh batches and
+Pending/Approved/Rejected independent reviews are represented. Existing sessions,
+old inventory/audit history and notifications are cleared; the schema/RLS stay intact.
+The script refuses to run without explicit approval, an external backup, matching
+reviewed row counts and staged Laravel authentication. It was rehearsed on
+PostgreSQL using isolated temporary tables restored from the downloaded snapshot;
+all rehearsal changes were rolled back and live data remained unchanged.
+Export generated temporary credentials privately outside Git. Each new account
+must replace its temporary password before warehouse access. This is presentation
+data, not a verified physical warehouse inventory.
 RLS does not interpret Laravel bearer tokens or employee roles: Laravel enforces
 this matrix, while PostgreSQL blocks the alternative public Data API path.
 See [Supabase grants and RLS](https://supabase.com/docs/guides/api/securing-your-api).
