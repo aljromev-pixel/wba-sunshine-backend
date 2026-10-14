@@ -1,6 +1,8 @@
 -- ONE-TIME DESTRUCTIVE PRESENTATION DATA RESET; never run from a migration/CI.
 -- Preserve existing Administration Managers and the application/platform schema.
 -- All new people, quantities, supplier/planning data and transactions are synthetic.
+-- Filter dates are synthetic warehouse expiry scenarios, not manufacturer shelf-life claims.
+-- Purifier and thermostat hardware has no artificial expiry date.
 -- Export and validate the current data outside Git before changing either guard.
 -- Run as postgres in the reviewed Supabase project, during a quiet period.
 BEGIN;
@@ -98,7 +100,7 @@ BEGIN
   before_stock:=p.stock; before_batch:=b.quantity;
   IF p_type='Transfer' THEN
     INSERT INTO public.batches(product_id,origin_batch_id,number,quantity,received_at,expires_at,location,created_at,updated_at)
-    VALUES(p.id,coalesce(b.origin_batch_id,b.id),'DEMO-AC-DISPATCH',p_quantity,b.received_at,b.expires_at,p_destination,p_stamp,p_stamp)
+    VALUES(p.id,coalesce(b.origin_batch_id,b.id),'DEMO-AP-DISPATCH',p_quantity,b.received_at,b.expires_at,p_destination,p_stamp,p_stamp)
     RETURNING id INTO destination_id;
     UPDATE public.batches SET quantity=quantity-p_quantity,updated_at=p_stamp WHERE id=b.id;
   ELSE
@@ -124,12 +126,12 @@ DECLARE item record; lot record; product_id bigint; stamp timestamp:=timezone('A
   day date:=(timezone('Asia/Manila',now()))::date; receipt_stamp timestamp; qty integer;
 BEGIN
   FOR item IN SELECT * FROM (VALUES
-    ('DEMO-CAR-006EEV','Carrier Optima Inverter Window Air Conditioner WCART006EEV','Air Conditioners','Seasonal-Critical',12,60,14,24),
-    ('DEMO-SAM-RT20','Samsung Top Mount Refrigerator RT20FARVDSA/TC','Refrigerators','Stable-Demand',8,60,7,15),
-    ('DEMO-LG-TX2312','LG 12 kg Top Load Washing Machine TX2312DT5G','Washing Machines','Traceable-High Accuracy',6,40,10,12),
+    ('DEMO-SHP-FPJ30','Sharp Plasmacluster Air Purifier FP-J30E-A','Air Purifiers','Seasonal-Critical',12,60,14,24),
+    ('DEMO-SHP-FPJ60','Sharp Plasmacluster Air Purifier FP-J60E-W','Air Purifiers','Stable-Demand',8,60,7,15),
+    ('DEMO-HON-TH6210','Honeywell Home T6 Pro Programmable Thermostat TH6210U2001','Thermostats','Traceable-High Accuracy',6,40,10,12),
     ('DEMO-SHP-FZF30','Sharp Replacement HEPA Filter FZ-F30HFE','Replacement Filters','Perishable-Rotating',32,120,10,36),
-    ('DEMO-HAN-SHIELD','Hanabishi Baby Shield Desk Fan HBBSHLD16DF','Electric Fans','Seasonal-Critical',20,100,5,45),
-    ('DEMO-PAN-DF181','Panasonic Rice Cooker SR-DF181','Rice Cookers','Stable-Demand',10,80,7,20)
+    ('DEMO-SHP-FZJ80','Sharp Replacement HEPA Filter FZ-J80HFE','Replacement Filters','Perishable-Rotating',20,100,5,45),
+    ('DEMO-SHP-FZF50','Sharp Replacement HEPA Filter FZ-F50HFE','Replacement Filters','Perishable-Rotating',10,80,7,20)
   ) AS catalogue(sku,name,category,pattern,reorder_point,capacity,lead_time,monthly_sales)
   LOOP
     INSERT INTO public.products(sku,name,category,demand_pattern,stock,reorder_point,capacity,supplier,lead_time,unit,
@@ -142,35 +144,35 @@ BEGIN
       CASE WHEN item.pattern='Seasonal-Critical' THEN '[{"month":4,"multiplier":1.5},{"month":5,"multiplier":1.8},{"month":6,"multiplier":2.0}]'::json ELSE '[]'::json END,
       0,stamp-interval '100 days',stamp
     RETURNING id INTO product_id;
-    FOR lot IN SELECT generate_series(1,CASE WHEN item.sku='DEMO-CAR-006EEV' THEN 2 ELSE 3 END) AS position
+    FOR lot IN SELECT generate_series(1,CASE WHEN item.sku='DEMO-SHP-FPJ30' THEN 2 ELSE 3 END) AS position
     LOOP
-      qty:=CASE item.sku WHEN 'DEMO-CAR-006EEV' THEN (ARRAY[20,15])[lot.position]
-        WHEN 'DEMO-SAM-RT20' THEN (ARRAY[10,8,6])[lot.position]
-        WHEN 'DEMO-LG-TX2312' THEN (ARRAY[6,8,4])[lot.position]
+      qty:=CASE item.sku WHEN 'DEMO-SHP-FPJ30' THEN (ARRAY[20,15])[lot.position]
+        WHEN 'DEMO-SHP-FPJ60' THEN (ARRAY[10,8,6])[lot.position]
+        WHEN 'DEMO-HON-TH6210' THEN (ARRAY[6,8,4])[lot.position]
         WHEN 'DEMO-SHP-FZF30' THEN (ARRAY[5,12,18])[lot.position]
-        WHEN 'DEMO-HAN-SHIELD' THEN (ARRAY[45,48,0])[lot.position]
+        WHEN 'DEMO-SHP-FZJ80' THEN (ARRAY[45,48,0])[lot.position]
         ELSE (ARRAY[12,10,8])[lot.position] END;
       receipt_stamp:=(day-(ARRAY[90,45,5])[lot.position])+time '09:00';
       INSERT INTO public.batches(product_id,number,quantity,received_at,expires_at,location,created_at,updated_at)
       VALUES(product_id,item.sku||'-LOT-'||lot.position,0,receipt_stamp::date,
-        CASE WHEN item.pattern='Perishable-Rotating' THEN day+(ARRAY[-7,14,180])[lot.position] END,
+      CASE WHEN item.sku='DEMO-SHP-FZF30' THEN day+(ARRAY[-7,14,180])[lot.position] WHEN item.pattern='Perishable-Rotating' THEN day+(ARRAY[120,240,360])[lot.position] END,
         CASE WHEN item.pattern='Perishable-Rotating' THEN 'Filter shelf F-'||lot.position ELSE 'Storage rack '||lot.position END,
         receipt_stamp,receipt_stamp);
       IF qty>0 THEN
         PERFORM pg_temp.wba_demo_move(item.sku,item.sku||'-LOT-'||lot.position,'demo.warehouse.staff@wba.example',
-          CASE WHEN item.sku='DEMO-PAN-DF181' AND lot.position=1 THEN 'Opening Balance' ELSE 'Stock In' END,
+          CASE WHEN item.sku='DEMO-SHP-FZF50' AND lot.position=1 THEN 'Opening Balance' ELSE 'Stock In' END,
           qty,'supplier receipt '||item.sku||' lot '||lot.position,receipt_stamp);
       END IF;
     END LOOP;
   END LOOP;
-  PERFORM pg_temp.wba_demo_move('DEMO-CAR-006EEV','DEMO-CAR-006EEV-LOT-1','demo.sales.staff@wba.example','Stock Out',18,'air conditioner dispatch SO-1001',stamp-interval '4 days');
-  PERFORM pg_temp.wba_demo_move('DEMO-CAR-006EEV','DEMO-CAR-006EEV-LOT-2','demo.sales.supervisor@wba.example','Stock Out',9,'air conditioner dispatch SO-1002',stamp-interval '3 days');
-  PERFORM pg_temp.wba_demo_move('DEMO-SAM-RT20','DEMO-SAM-RT20-LOT-1','demo.sales.staff@wba.example','Stock Out',4,'refrigerator dispatch SO-1003',stamp-interval '3 days');
-  PERFORM pg_temp.wba_demo_move('DEMO-LG-TX2312','DEMO-LG-TX2312-LOT-1','demo.sales.staff@wba.example','Stock Out',1,'washing machine dispatch SO-1004',stamp-interval '3 days');
-  PERFORM pg_temp.wba_demo_move('DEMO-CAR-006EEV','DEMO-CAR-006EEV-LOT-1','demo.warehouse.supervisor@wba.example','Transfer',1,'rack-to-dispatch internal transfer',stamp-interval '2 days','Dispatch bay A');
-  PERFORM pg_temp.wba_demo_move('DEMO-CAR-006EEV','DEMO-CAR-006EEV-LOT-2','demo.warehouse.staff@wba.example','Stock In',2,'supplementary air conditioner receipt',stamp-interval '1 day');
-  PERFORM pg_temp.wba_demo_move('DEMO-SAM-RT20','DEMO-SAM-RT20-LOT-1','demo.warehouse.staff@wba.example','Return',2,'unopened refrigerator return RT-1001',stamp-interval '6 hours');
-  PERFORM pg_temp.wba_demo_move('DEMO-LG-TX2312','DEMO-LG-TX2312-LOT-1','demo.warehouse.staff@wba.example','Return',1,'unopened washing machine return RT-1002',stamp-interval '5 hours');
+  PERFORM pg_temp.wba_demo_move('DEMO-SHP-FPJ30','DEMO-SHP-FPJ30-LOT-1','demo.sales.staff@wba.example','Stock Out',18,'air purifier dispatch SO-1001',stamp-interval '4 days');
+  PERFORM pg_temp.wba_demo_move('DEMO-SHP-FPJ30','DEMO-SHP-FPJ30-LOT-2','demo.sales.supervisor@wba.example','Stock Out',9,'air purifier dispatch SO-1002',stamp-interval '3 days');
+  PERFORM pg_temp.wba_demo_move('DEMO-SHP-FPJ60','DEMO-SHP-FPJ60-LOT-1','demo.sales.staff@wba.example','Stock Out',4,'air purifier dispatch SO-1003',stamp-interval '3 days');
+  PERFORM pg_temp.wba_demo_move('DEMO-HON-TH6210','DEMO-HON-TH6210-LOT-1','demo.sales.staff@wba.example','Stock Out',1,'thermostat dispatch SO-1004',stamp-interval '3 days');
+  PERFORM pg_temp.wba_demo_move('DEMO-SHP-FPJ30','DEMO-SHP-FPJ30-LOT-1','demo.warehouse.supervisor@wba.example','Transfer',1,'rack-to-dispatch internal transfer',stamp-interval '2 days','Dispatch bay A');
+  PERFORM pg_temp.wba_demo_move('DEMO-SHP-FPJ30','DEMO-SHP-FPJ30-LOT-2','demo.warehouse.staff@wba.example','Stock In',2,'supplementary air purifier receipt',stamp-interval '1 day');
+  PERFORM pg_temp.wba_demo_move('DEMO-SHP-FPJ60','DEMO-SHP-FPJ60-LOT-1','demo.warehouse.staff@wba.example','Return',2,'unopened air purifier return RT-1001',stamp-interval '6 hours');
+  PERFORM pg_temp.wba_demo_move('DEMO-HON-TH6210','DEMO-HON-TH6210-LOT-1','demo.warehouse.staff@wba.example','Return',1,'unopened thermostat return RT-1002',stamp-interval '5 hours');
 END $catalogue$;
 
 DO $counts$
@@ -179,8 +181,8 @@ DECLARE scenario record; p public.products%ROWTYPE; request_id bigint; requester
 BEGIN
   SELECT id INTO STRICT requester FROM public.users WHERE email='demo.warehouse.staff@wba.example';
   FOR scenario IN SELECT * FROM (VALUES
-    ('DEMO-PAN-DF181','Approved',-2,'demo.warehouse.manager@wba.example','Cycle count — DEMO: verified shelf count; two units missing from lot 2'),
-    ('DEMO-LG-TX2312','Rejected',1,'demo.purchasing.manager@wba.example','DEMO: duplicate-counted washing machine; supervisor rejected the proposed increase'),
+    ('DEMO-SHP-FZF50','Approved',-2,'demo.warehouse.manager@wba.example','Cycle count — DEMO: verified shelf count; two units missing from lot 2'),
+    ('DEMO-HON-TH6210','Rejected',1,'demo.purchasing.manager@wba.example','DEMO: duplicate-counted thermostat; supervisor rejected the proposed increase'),
     ('DEMO-SHP-FZF30','Pending',-1,NULL,'Cycle count — DEMO: filter recount awaiting an independent reviewer')
   ) AS scenarios(sku,status,difference,reviewer_email,reason)
   LOOP
@@ -267,8 +269,8 @@ BEGIN
   IF (SELECT count(DISTINCT demand_pattern) FROM public.products)<>4 OR (SELECT count(DISTINCT type) FROM public.inventory_movements)<>6 THEN
     RAISE EXCEPTION 'Missing required demonstration tag or movement';
   END IF;
-  IF EXISTS (SELECT 1 FROM (VALUES ('DEMO-CAR-006EEV',10),('DEMO-SAM-RT20',22),('DEMO-LG-TX2312',18),
-    ('DEMO-SHP-FZF30',35),('DEMO-HAN-SHIELD',93),('DEMO-PAN-DF181',28)) expected(sku,quantity)
+  IF EXISTS (SELECT 1 FROM (VALUES ('DEMO-SHP-FPJ30',10),('DEMO-SHP-FPJ60',22),('DEMO-HON-TH6210',18),
+    ('DEMO-SHP-FZF30',35),('DEMO-SHP-FZJ80',93),('DEMO-SHP-FZF50',28)) expected(sku,quantity)
     JOIN public.products p USING(sku) WHERE p.stock<>expected.quantity) THEN
     RAISE EXCEPTION 'Unexpected demonstration stock totals';
   END IF;
