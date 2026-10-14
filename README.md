@@ -254,3 +254,27 @@ A live cutover is pending until an external backup and restore rehearsal, truste
 email ownership, server configuration, account import and hosted portal smoke tests
 are verified. Prepared code and local mocked-provider tests are not evidence of a
 completed hosted migration.
+
+### Final authentication and cleanup verification
+
+The final local backend run passed 138 tests (759 assertions); two PostgreSQL-only
+boundary tests were skipped on the local SQLite runner. The complete Supabase SQL
+was separately executed against PostgreSQL 17.11 inside a transaction that rolled
+back all fixtures. Staff isolation, Administration profile privacy, denied role
+writes/credential reads, banned identity access, restrictive Auth FKs, uniqueness,
+finalization and deferred identity enforcement passed. No live Auth accounts or
+staged identity column remained after that test. Table/column comments: zero.
+
+All 16 public tables remain referenced by the warehouse application or Laravel
+configuration. Empty data alone is not grounds for removing configured cache,
+session, queue or password infrastructure. The empty starter JavaScript asset and
+the placeholder true-is-true unit test were removed with their build/suite
+references; functional regression tests remain. No managed Supabase schema was
+removed. Composer's security audit reported no advisories.
+
+Portal separation works in the staged Laravel mode and in provider-mocked Supabase
+tests. Production Supabase authentication is still pending: verify external backup
+restoration, configure the server-only keys, import accounts and smoke-test the
+hosted portals before finalizing. Local PHP has no PostgreSQL driver, so use the
+trusted deployment runner described in DEPLOYMENT.md. Do not mark the live cutover
+complete from these local results.
